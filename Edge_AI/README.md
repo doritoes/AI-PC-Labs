@@ -40,25 +40,6 @@ In this step you will install Intel OpenVINO
 
 [OpenVINO](2_OpenVINO.md)
 
-# Create a virtual environment for the lab
-python -m venv ai_pc_env
-
-# Activate the environment
-.\ai_pc_env\Scripts\Activate
-
-# Install OpenVINO (The engine that talks to your NPU)
-pip install openvino==2024.4.0 opencv-python numpy
-
-# Verify NPU Access
-test file check_npu.py
-~~~
-import openvino as ov
-core = ov.Core()
-devices = core.available_devices
-print(f"Available Devices: {devices}")
-if 'NPU' in devices:
-    print("✅ NPU (Intel AI Boost) is ready for your lab!")
-~~~
 ## NPU Demonstration
 Were we will demonstrate
 
