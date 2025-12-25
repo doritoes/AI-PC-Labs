@@ -15,45 +15,53 @@ In this step we install the bridge between Python and your Intel NPU.
 ~~~
 import openvino as ov
 import numpy as np
+import sys
 
-def test_npu():
-    print("--- AI PC Hardware Verification ---")
-    core = ov.Core()
-    devices = core.available_devices
-
-    # 1. Check if NPU exists in the device list
-    if 'NPU' not in devices:
-        print("❌ ERROR: NPU not found in available devices.")
-        print(f"Devices detected: {devices}")
-        return
-
-    # 2. Get detailed NPU Information
-    full_name = core.get_property("NPU", "FULL_DEVICE_NAME")
-    print(f"✅ SUCCESS: Found {full_name}")
-
-    # 3. Test "Warm-up" (Compile a dummy model to NPU)
-    # This checks if the Level Zero drivers are working
-    print("🔄 Compiling test model to NPU... (this may take a few seconds)")
+def verify_npu_lab():
+    print("--- OpenVINO 2025 NPU Verification ---")
     
-    # Create a simple 1x10 matrix addition model
-    param = ov.runtime.opset10.parameter([1, 10], name="input", dtype=np.float32)
-    relu = ov.runtime.opset10.relu(param)
-    model = ov.Model([relu], [param], "VerifyNPU")
+    # Initialize OpenVINO Core
+    core = ov.Core()
+    
+    # 1. Hardware Check
+    devices = core.available_devices
+    print(f"Detected Devices: {devices}")
+    
+    if 'NPU' not in devices:
+        print("❌ ERROR: Intel AI Boost NPU not detected.")
+        print("Check if 'Intel(R) AI Boost' is visible in Windows Device Manager.")
+        sys.exit(1)
+
+    # 2. Extract NPU Metadata
+    npu_name = core.get_property("NPU", "FULL_DEVICE_NAME")
+    print(f"✅ NPU Confirmed: {npu_name}")
+
+    # 3. Functional Test: Model Compilation
+    # We create a simple 'Identity' model to test the driver communication path
+    print("🔄 Testing NPU Driver (Level Zero) by compiling a test model...")
+    
+    # Define a simple 1x224x224 input (standard image size)
+    input_node = ov.runtime.opset13.parameter([1, 3, 224, 224], np.float32, name="input")
+    model = ov.Model(ov.runtime.opset13.relu(input_node), [input_node], "TestModel")
     
     try:
+        # This is where the magic happens: offloading to NPU
         compiled_model = core.compile_model(model, "NPU")
-        print("🚀 NPU model compilation successful!")
+        print("🚀 Success! The NPU has successfully compiled the test model.")
         
-        # 4. Run a test inference
-        input_data = np.random.rand(1, 10).astype(np.float32)
-        results = compiled_model(input_data)
-        print("✨ NPU Inference test complete. Hardware is fully operational.")
+        # 4. Quick Inference Test
+        test_input = np.random.rand(1, 3, 224, 224).astype(np.float32)
+        infer_request = compiled_model.create_infer_request()
+        infer_request.infer({input_node.any_name: test_input})
+        
+        print("✨ Inference complete. Your HP EliteDesk NPU is 100% ready for the lab.")
         
     except Exception as e:
-        print(f"❌ COMPILATION ERROR: Drivers may be missing or mismatched.\n{e}")
+        print(f"❌ COMPILATION ERROR: {e}")
+        print("\nTip: Ensure your Intel NPU drivers are updated to version 32.0.100.x or higher.")
 
 if __name__ == "__main__":
-    test_npu()
+    verify_npu_lab()
 ~~~
 
 2. Run the script: `python3 verify_npu.py`
