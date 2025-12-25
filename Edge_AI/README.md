@@ -1,6 +1,8 @@
 # Edge AI Lab
 The mission in this Lab is to create genuine hands-on experience for technology learners using the learner-friendly NUC PCs. This is a good "first AI Lab" that demonstrates the power of the NPU. We will compare NPU vs. CPU performance.
 
+NOTE Intel NPUs currently perform best when accessed directly from Windows. The NPU driver support inside the Linux kernel for WSL is still maturing.
+
 Prerequisites:
 - Window 11 Pro already installed and configured
 
@@ -16,17 +18,47 @@ Materials:
 - Windows 11 PC with Intel Core Ultra  processor (dedicated NPU)
 
 # Overview
+## Hardware and Driver Verification
+Ensure Windows kernal can "see" the AI hardware
+- Device Manager > Neural Processors
+  - You should see Intel(R) AI Boost
+- Task Manager > Performance
+  - Loof for NPU 0 in the sidebar
+  
 ## Set up Python
 In this step you will set up the Python environment.
 
 [Python](1_Python.md)
 
+1. Install Python
+Download Python 3.10 or 3.11 from python.org.
+
+Crucial: During installation, check the box "Add Python to PATH".
 
 ## Install OpenVINO
 In this step you will install Intel OpenVINO
 
 [OpenVINO](2_OpenVINO.md)
 
+# Create a virtual environment for the lab
+python -m venv ai_pc_env
+
+# Activate the environment
+.\ai_pc_env\Scripts\Activate
+
+# Install OpenVINO (The engine that talks to your NPU)
+pip install openvino==2024.4.0 opencv-python numpy
+
+# Verify NPU Access
+test file check_npu.py
+~~~
+import openvino as ov
+core = ov.Core()
+devices = core.available_devices
+print(f"Available Devices: {devices}")
+if 'NPU' in devices:
+    print("✅ NPU (Intel AI Boost) is ready for your lab!")
+~~~
 ## NPU Demonstration
 Were we will demonstrate
 
