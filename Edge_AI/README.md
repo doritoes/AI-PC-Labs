@@ -1,5 +1,5 @@
 # Edge AI Lab
-The mission in this Lab is to create genuine hands-on experience for technology learners using the learner-friendly NUC PCs.
+The mission in this Lab is to create genuine hands-on experience for technology learners using the learner-friendly NUC PCs. This is a good "first AI Lab" that demonstrates the power of the NPU. We will compare NPU vs. CPU performance.
 
 Prerequisites:
 - Window 11 Pro already installed and configured
@@ -28,6 +28,7 @@ In this step you will install Intel OpenVINO
 [OpenVINO](2_OpenVINO.md)
 
 ## NPU Demonstration
+Were we will demonstrate
 
 ## Lab 2
 
