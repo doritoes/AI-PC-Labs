@@ -7,7 +7,7 @@ In this step we install the bridge between Python and your Intel NPU.
 2. Update and upgrade pop
     - `python -m pip install --upgrade pip
 3. Install OpenVINO and essential AI PC libraries
-    - `pip install openvino==2024.4.0 openvino-genai opencv-python numpy`
+    - `pip install openvino==2025.4.1 openvino-genai==2025.4.1 opencv-python numpy`
     - NOTE 'openvino-genai' is specifically designed for LLMs on the NPU
   
 ## Test
