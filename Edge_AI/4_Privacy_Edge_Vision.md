@@ -48,7 +48,8 @@ This script manages two different NPU "inference requests" in a single loop.
     - keyboard
     - mouse
     - monitor
-5. From the video window press 'q' to quit
+5. From the task manager, check the impact on the CPU, GPU, and NPU
+6. From the video window press 'q' to quit
 
 ## Experiment and Learn
 This lab demonstrates a "Metadata Only" strategy. It doesn't just record video.
@@ -72,3 +73,4 @@ Stress Test
 - Try partially obscuring your face with your hard to defeat the blur
 - Hold up a laptop or a chair
 - Verify that the CSV file correctly identifies the time and the object
+- Try swapping the larger yolov8s.pt in to replace yolov8n.pt model. Do you get better detection?
