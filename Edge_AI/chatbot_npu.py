@@ -4,35 +4,39 @@ import os
 import shutil
 
 def run_npu_chatbot():
-    # 1. HARDWARE ENVIRONMENT FIXES
-    # Force the L0 memory bypass to prevent 'Out of Host Memory' errors
+    # 1. HARDWARE ENVIRONMENT FIXES (Automatic)
+    # This bypasses the L0 memory allocation error we saw earlier
     os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
     
     # 2. PATH SETUP
-    model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'phi-3-mini-int4')
+    # Updated to the Qwen-1.5b directory
+    model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
     cache_path = os.path.join(os.environ['LOCALAPPDATA'], 'OpenVINO', 'cache')
 
     if not os.path.exists(model_path):
         print(f"ERROR: Model not found at {model_path}")
         return
 
-    # 3. INITIALIZE NPU WITH MODERN CONFIGURATION
-    print("\n--- Initializing Intel NPU (AI PC Accelerator) ---")
+    # 3. INITIALIZE NPU
+    print("\n" + "-"*50)
+    print("INITIALIZING INTEL NPU (AI PC ACCELERATOR)")
+    print(f"MODEL: Qwen2.5-1.5B (INT4 Quantized)")
+    print("-"*50)
     
-    # NOTE: We removed 'NPUW_CONF' and replaced it with direct NPU properties
-    # to match the latest 2025 Intel NPU drivers.
+    # Configuration using direct NPU properties for modern drivers
     config = {
         "NPU_RUN_INFERENCES_SEQUENTIALLY": "OFF",
         "PERFORMANCE_HINT": "LATENCY"
     }
 
     try:
-        # Loading the pipeline directly to the NPU
+        # Loading the pipeline. First run will trigger compilation.
         pipe = ov_genai.LLMPipeline(model_path, "NPU", **config)
     except Exception as e:
-        print(f"\n[CRITICAL ERROR] NPU Initialization failed: {e}")
-        if "NPUW_CONF" in str(e):
-            print("Tip: Your driver requires direct NPU properties instead of NPUW_CONF.")
+        print(f"\n[CRITICAL ERROR]: {e}")
+        if os.path.exists(cache_path):
+            print("Cleaning cache and recommending a restart...")
+            shutil.rmtree(cache_path)
         return
 
     # 4. CHAT INTERFACE
@@ -59,25 +63,31 @@ def run_npu_chatbot():
                 first_token_time = time.time()
             print(subword, end="", flush=True)
             token_count += 1
+            # Return RUNNING to keep generating
             return ov_genai.StreamingStatus.RUNNING
 
         # 6. GENERATION
         try:
+            # max_new_tokens limits the response length to save NPU resources
             pipe.generate(prompt, max_new_tokens=256, streamer=streamer)
         except Exception as e:
             print(f"\n[GENERATION ERROR]: {e}")
             break
 
-        # 7. METRICS
+        # 7. METRIC CALCULATION
         end_time = time.time()
+        
+        # Time to First Token (TTFT)
         ttft = (first_token_time - start_time) * 1000 if first_token_time else 0
+        
+        # Tokens Per Second (TPS)
         gen_duration = end_time - first_token_time if first_token_time else 0
         tps = token_count / gen_duration if gen_duration > 0 else 0
 
         print(f"\n\n" + "-"*40)
         print(f"NPU PERFORMANCE METRICS:")
-        print(f">> Time to First Token (TTFT): {ttft:.2f} ms")
-        print(f">> Tokens Per Second (TPS):    {tps:.2f} tok/s")
+        print(f">> TTFT (Responsiveness): {ttft:.2f} ms")
+        print(f">> TPS (Throughput):      {tps:.2f} tokens/sec")
         print(f"-"*40)
 
 if __name__ == "__main__":
