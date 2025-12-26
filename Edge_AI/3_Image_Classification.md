@@ -21,12 +21,14 @@ The "ResNet" part refers to the Residual Networks family.
 
 Read more at: https://blog.roboflow.com/what-is-resnet-50/
 
-1. Create a folder for our models
+1. Open PowerShell and start in the project folder
+    - `cd "$env:USERPROFILE\Edge-AI"`
+2. Create a folder for our models
     - `mkdir models`
     - `cd models`
-2. Download the ResNet-50 model in ONNX format (standard 100MB model for image classification)
+3. Download the ResNet-50 model in ONNX format (standard 100MB model for image classification)
     - `curl.exe -L https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v1-12.onnx --output resnet50.onnx`
-3. Return to the previous directory
+4. Return to the previous directory
     - `cd ..`
 
 ## Performance Baseline (CPU)
