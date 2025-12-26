@@ -10,15 +10,15 @@ In this step we install the bridge between Python and your Intel NPU.
     - Check the box and click **Install**
     - Select the Workload, **Desktop development with C++**
     - Click **Install**
-    - Click **Close**
+    - When the installation is complete, close the installer
     - Reboot; the build commands are now in the PATH
 2. Ensure the Python virtual environment is active
     - Open a <in>new PowerShell window</ins>
     - `cd "$env:USERPROFILE\Edge-AI"`
     - `.\nputest_env\Scripts\Activate`
-4. Update and upgrade pip
+3. Update and upgrade pip
     - `python -m pip install --upgrade pip`
-5. Install OpenVINO and essential AI PC libraries
+4. Install OpenVINO and essential AI PC libraries
     - `pip install numpy`
     - `pip install openvino==2025.4.1`
     - `pip install openvino-genai==2025.4.1`
