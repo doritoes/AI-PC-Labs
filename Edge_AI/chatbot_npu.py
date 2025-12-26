@@ -23,7 +23,7 @@ def run_npu_chatbot():
 
     try:
         # Load the pipeline with the specific static container instructions
-        pipe = ov_genai.LLMPipeline(model_path, "NPU", pipeline_config)
+        pipe = ov_genai.LLMPipeline(model_path, "NPU", **pipeline_config)
     except Exception as e:
         print(f"\n[CRITICAL ERROR]: {e}")
         print("\nNOTE: If this still fails, your model export lacks the 'Stateful' metadata required for NPU.")
