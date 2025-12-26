@@ -11,7 +11,7 @@ def run_npu_chatbot():
         return
 
     # 2. NPU INITIALIZATION
-    print("Loading model to NPU... (This may take up to 30 seconds for first-time compilation)")
+    print("Loading model to NPU... (First-time compilation will take several minutes)")
     
     # We use GENERATE_HINT: BEST_PERF to optimize the NPU's throughput
     config = {
