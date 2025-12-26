@@ -1,69 +1,88 @@
-import openvino as ov
-import numpy as np
+import openvino_genai as ov_genai
 import time
 import os
-from transformers import AutoTokenizer
+import shutil
 
-def run_manual_npu():
-    # 1. ENVIRONMENT & PATHS
+def run_npu_chatbot():
+    # 1. HARDWARE ENVIRONMENT STABILITY
+    # Helps prevent memory allocation issues on current NPU driver stacks
     os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
-    model_dir = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'tiny-llama')
-    model_xml = os.path.join(model_dir, "openvino_model.xml")
     
-    print("\n--- STARTING BARE-METAL NPU INITIALIZATION ---")
-    
-    # 2. LOAD TOKENIZER (Uses CPU)
-    tokenizer = AutoTokenizer.from_pretrained(model_dir)
+    # 2. PATH SETUP
+    model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
+    cache_path = os.path.join(os.environ['LOCALAPPDATA'], 'OpenVINO', 'cache')
 
-    # 3. INITIALIZE OPENVINO CORE
-    core = ov.Core()
-    
-    print("Step 1: Reading Model IR...")
-    model = core.read_model(model_xml)
+    if not os.path.exists(model_path):
+        print(f"ERROR: Model not found at {model_path}")
+        return
 
-    print("Step 2: Compiling Model for NPU (This is the critical step)...")
+    # 3. INITIALIZE NPU (Optimized for v4515 Driver)
+    print("\n" + "-"*50)
+    print("INITIALIZING INTEL NPU (v4515 DETECTED)")
+    print(f"MODEL: Qwen2.5-1.5B-Instruct (INT4)")
+    print("-"*50)
+    
+    # PERFORMANCE_HINT: LATENCY ensures the NPU prioritizes immediate response
+    config = {
+        "PERFORMANCE_HINT": "LATENCY"
+    }
+
     try:
-        # We use a very basic config to avoid driver triggers
-        compiled_model = core.compile_model(model, "NPU")
-        infer_request = compiled_model.create_infer_request()
+        # Initial compilation may take 30-45 seconds on the new driver
+        pipe = ov_genai.LLMPipeline(model_path, "NPU", **config)
     except Exception as e:
-        print(f"\n[HARDWARE ERROR]: The NPU driver failed to compile the model: {e}")
-        print("Switching to 'AUTO' or 'CPU' is the only remaining path for this driver version.")
+        print(f"\n[CRITICAL ERROR]: {e}")
         return
 
     # 4. CHAT INTERFACE
     print("\n" + "="*50)
-    print("NPU MANUAL CHAT ONLINE")
+    print("NPU CHATBOT ONLINE (Type 'quit' to exit)")
     print("="*50)
 
     while True:
-        user_input = input("\nStudent: ")
-        if user_input.lower() in ['quit', 'exit']: break
+        prompt = input("\nStudent: ")
+        if prompt.lower() in ['quit', 'exit']: break
+        if not prompt.strip(): continue
 
-        # Simple prompt formatting for TinyLlama
-        prompt = f"<|system|>\nYou are a helpful assistant.</s>\n<|user|>\n{user_input}</s>\n<|assistant|>\n"
-        inputs = tokenizer(prompt, return_tensors="np")
-        input_ids = inputs['input_ids']
+        # Metric Tracking
+        start_time = time.time()
+        first_token_time = None
+        token_count = 0
 
         print("NPU Assistant: ", end="", flush=True)
-        
-        # Generation loop (Manual Argmax)
-        generated_ids = input_ids.tolist()[0]
-        for _ in range(100):
-            # Run inference on NPU
-            results = compiled_model(input_ids)[0]
-            next_token_id = np.argmax(results[:, -1, :])
-            
-            if next_token_id == tokenizer.eos_token_id:
-                break
-                
-            word = tokenizer.decode([next_token_id])
-            print(word, end="", flush=True)
-            
-            generated_ids.append(next_token_id)
-            input_ids = np.array([generated_ids])
 
-        print("\n" + "-"*40)
+        # 5. STREAMER
+        def streamer(subword):
+            nonlocal first_token_time, token_count
+            if first_token_time is None:
+                first_token_time = time.time()
+            print(subword, end="", flush=True)
+            token_count += 1
+            return ov_genai.StreamingStatus.RUNNING
+
+        # 6. GENERATION
+        try:
+            # We use max_new_tokens=256 to stay within the driver's optimal static buffer
+            pipe.generate(prompt, max_new_tokens=256, streamer=streamer)
+        except Exception as e:
+            print(f"\n[GENERATION ERROR]: {e}")
+            break
+
+        # 7. METRIC CALCULATION
+        end_time = time.time()
+        
+        # Time to First Token (Responsiveness)
+        ttft = (first_token_time - start_time) * 1000 if first_token_time else 0
+        
+        # Tokens Per Second (Throughput)
+        gen_duration = end_time - first_token_time if first_token_time else 0
+        tps = token_count / gen_duration if gen_duration > 0 else 0
+
+        print(f"\n\n" + "-"*40)
+        print(f"NPU PERFORMANCE METRICS:")
+        print(f">> TTFT (Responsiveness): {ttft:.2f} ms")
+        print(f">> TPS (Throughput):      {tps:.2f} tokens/sec")
+        print(f"-"*40)
 
 if __name__ == "__main__":
-    run_manual_npu()
+    run_npu_chatbot()
