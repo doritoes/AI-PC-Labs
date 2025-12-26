@@ -39,7 +39,7 @@ def run_npu_chatbot():
         return
 
     print("\n" + "*"*50)
-    print("   SUCCESS: NPU ONLINE   ")
+    print("   SUCCESS: NPU online   ")
     print("   Type 'quit' to exit the program   ")
     print("*"*50)
 
