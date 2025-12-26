@@ -3,27 +3,37 @@ import time
 import os
 
 def run_npu_chatbot():
-    # Final stability flag for Intel NPU drivers
+    # 1. ENVIRONMENT & DIRECTORY SETUP
     os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
     
+    # Path to your model
     model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
+    
+    # Create a local cache directory to store compiled NPU blobs
+    cache_dir = os.path.join(os.getcwd(), 'npu_cache')
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+        print(f"Created cache directory at: {cache_dir}")
 
     print("\n" + "="*50)
     print("  INTEL NPU ACCELERATED CHATBOT (v4515)  ")
     print("="*50)
-    print("INITIALIZING: Please wait while NPU buffers are reserved...")
+    print("INITIALIZING: Mapping model to NPU (First run takes ~1 min)...")
 
-    # Static container configuration for v4515 stability
+    # 2. CONFIGURATION (Kwargs format to avoid DeprecationWarning)
+    # CACHE_DIR: This is the magic key for instant subsequent startups.
     pipeline_config = {
         "MAX_PROMPT_LEN": 1024,
         "MIN_RESPONSE_LEN": 128,
         "PREFILL_HINT": "STATIC",
         "GENERATE_HINT": "BEST_PERF",
-        "PERFORMANCE_HINT": "LATENCY"
+        "PERFORMANCE_HINT": "LATENCY",
+        "CACHE_DIR": cache_dir
     }
 
     try:
-        pipe = ov_genai.LLMPipeline(model_path, "NPU", pipeline_config)
+        # We pass the dictionary as **kwargs to match the 2025.x API
+        pipe = ov_genai.LLMPipeline(model_path, "NPU", **pipeline_config)
     except Exception as e:
         print(f"\n[CRITICAL ERROR]: {e}")
         return
@@ -33,10 +43,10 @@ def run_npu_chatbot():
     print("   Type 'quit' to exit the program   ")
     print("*"*50)
 
+    # 3. CHAT LOOP
     while True:
         prompt = input("\nStudent: ")
         
-        # Check for quit command
         if prompt.lower() in ['quit', 'exit']:
             print("Shutting down NPU sessions... Goodbye!")
             break
@@ -59,10 +69,10 @@ def run_npu_chatbot():
             return ov_genai.StreamingStatus.RUNNING
 
         try:
-            # Generate using the NPU
+            # Generate response
             pipe.generate(prompt, max_new_tokens=256, streamer=streamer, do_sample=False)
             
-            # End of response metrics
+            # Show Performance
             end_time = time.time()
             if first_token_time:
                 ttft = (first_token_time - start_time) * 1000
