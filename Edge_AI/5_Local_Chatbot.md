@@ -64,13 +64,15 @@ Some test prompts:
     - NOTE how the LLM gets it incorrect! (chould be -11.1111 degrees C)
         - Tokenization vs. Math: LLMs don't "do math" with a calculator; they predict the next most likely piece of text (token). Because $32 \times \frac{5}{9}$ is a very common snippet in training data, the model's "attention" was pulled toward calculating that first, violating the parentheses.
         - Quantization Impact: Using INT4 (4-bit) makes the model fast and small, but it can slightly degrade its ability to follow complex logical constraints compared to the full-sized FP16 version.
+5. Stump the Model
+    - I mixed 1 cup of brazil nuts, 1 cup of raw almonds, and 1 cup of whole walnuts together in a large container. I then removed 1 cup of nuts from the large container. What is the contents of the cup of nuts i took out?
 
 ## Give the Chatbot a Goal
 To make this a true "AI Assistant" lab, you can wrap the user's input in a template that gives the AI a personality or a specific goal. This is how "ChatGPT" is tuned to be helpful rather than just completing text.
 
 Here we add the "format_prompt" function to tell the model how to behave before it sees the user question.
-
-[chatbot_npu_goal.py](chatbot_npu_goal.py)
+- [chatbot_npu_goal.py](chatbot_npu_goal.py)
+- `python .\chatbot_npu_goal.py`
 
 ## Example in Python Script
 Use this is an example of querying the model from a python script.
