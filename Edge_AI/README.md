@@ -3,6 +3,8 @@ The mission in this Lab is to create genuine hands-on experience for technology 
 
 NOTE Intel NPUs currently perform best when accessed directly from Windows. The NPU driver support inside the Linux kernel for WSL is still maturing.
 
+IMPORTANT Be aware that the drivers and models and versions are very fluid, and what works today might not working tomorrow!
+
 Prerequisites:
 - Window 11 Pro already installed and configured
 
