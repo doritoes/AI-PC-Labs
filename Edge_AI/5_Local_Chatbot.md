@@ -73,12 +73,8 @@ Here we add the "format_prompt" function to tell the model how to behave before 
 [chatbot_npu_goal.py](chatbot_npu_goal.py)
 
 ## Example in Python Script
-
-~~~
-import openvino_genai as ov_genai
-pipe = ov_genai.LLMPipeline("model_path", "NPU")
-print(pipe.generate("Explain Edge AI in three sentences.", max_new_tokens=100))
-~~~
+Use this is an example of querying the model from a python script.
+[chat_npu_benchmark.py](chat_npu_benchmark.py)
 
 ## Final Learnings Review
 1. Dedicated Hardware: You aren't using the CPU (the "Generalist") or the GPU (the "Artist"). You are using the NPU (the "Specialist") specifically designed for the matrix math that AI requires.
