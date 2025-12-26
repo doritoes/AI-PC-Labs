@@ -45,8 +45,8 @@ from ultralytics import YOLO
 import os
 import time
 
-def run_context_aware_lab():
-    # 1. HARDWARE INIT
+def run_logging_security_lab():
+    # 1. HARDWARE & MODEL INIT
     model_path = "models/yolov8n_openvino_model/yolov8n.xml"
     face_path = "models/face_detection.xml"
     
@@ -57,13 +57,14 @@ def run_context_aware_lab():
     c_face = core.compile_model(core.read_model(face_path), device)
     
     class_names = YOLO('yolov8n.pt').names
-    # Expanded list to prevent "Mis-labeling" (e.g., keyboard -> laptop)
-    office_list = ['person', 'chair', 'book', 'cup', 'laptop', 'keyboard', 'mouse', 'monitor', 'tv']
+    office_list = ['person', 'chair', 'book', 'cup', 'laptop', 'keyboard', 'mouse', 'monitor']
     
     cap = cv2.VideoCapture(0)
+    last_log_time = 0
+    active_items = set()
 
     print("\n" + "="*50)
-    print("OFFICE CONTEXT LAB: ACTIVE")
+    print("LOGGING ENABLED: CHECK CONSOLE FOR DETECTIONS")
     print(">> QUIT: Press 'Q' in the video window.")
     print("="*50 + "\n")
 
@@ -72,7 +73,7 @@ def run_context_aware_lab():
         if not ret: break
         h, w = frame.shape[:2]
 
-        # --- TASK A: NPU FACE BLUR ---
+        # --- TASK A: PRIVACY (Face Blur) ---
         f_blob = cv2.resize(frame, (300, 300)).transpose((2, 0, 1)).reshape(1, 3, 300, 300)
         f_hits = c_face([f_blob])[c_face.output(0)]
         for hit in f_hits[0][0]:
@@ -82,7 +83,7 @@ def run_context_aware_lab():
                 if roi.size > 0:
                     frame[max(0,y1):y2, max(0,x1):x2] = cv2.GaussianBlur(roi, (99, 99), 30)
 
-        # --- TASK B: TUNED OBJECT DETECTION ---
+        # --- TASK B: TUNED DETECTION ---
         input_img = cv2.resize(frame, (640, 640)).astype(np.float32) / 255.0
         blob = input_img.transpose(2, 0, 1).reshape(1, 3, 640, 640)
         
@@ -90,16 +91,19 @@ def run_context_aware_lab():
         data = np.squeeze(results).T 
         
         boxes, confs, ids = [], [], []
+        current_frame_items = set()
+
         for row in data:
             scores = row[4:]
             c_id = np.argmax(scores)
             conf = scores[c_id]
+            label = class_names[c_id]
             
-            # DYNAMIC THRESHOLD: Lower threshold for items, keep it high for person
-            # This helps the NPU 'see' the book and cup which are smaller/lower contrast
-            thresh = 0.45 if class_names[c_id] in ['book', 'cup', 'chair'] else 0.60
+            # THE BOOK FIX: Lowering threshold to 0.35 specifically for books
+            # Maintaining 0.55 for other items to keep the frame clean
+            specific_thresh = 0.35 if label == 'book' else 0.55
             
-            if conf > thresh and class_names[c_id] in office_list:
+            if conf > specific_thresh and label in office_list:
                 cx, cy, bw, bh = row[:4]
                 rx, ry = int((cx - bw/2) * (w/640)), int((cy - bh/2) * (h/640))
                 rw, rh = int(bw * (w/640)), int(bh * (h/640))
@@ -108,26 +112,38 @@ def run_context_aware_lab():
                 confs.append(float(conf))
                 ids.append(c_id)
 
-        # NMS cleanup to prevent box flickering
-        indices = cv2.dnn.NMSBoxes(boxes, confs, 0.45, 0.4)
+        indices = cv2.dnn.NMSBoxes(boxes, confs, 0.35, 0.4)
         
         if len(indices) > 0:
             for i in indices.flatten():
-                label = class_names[ids[i]].upper()
-                bx, by, bw, bh = boxes[i]
+                name = class_names[ids[i]].upper()
+                current_frame_items.add(name)
                 
-                # Visuals
+                bx, by, bw, bh = boxes[i]
                 cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), (0, 255, 0), 2)
-                cv2.putText(frame, f"{label} {confs[i]:.2f}", (bx, by - 10), 0, 0.5, (0, 255, 0), 2)
+                cv2.putText(frame, f"{name} {confs[i]:.2f}", (bx, by - 10), 0, 0.5, (0, 255, 0), 2)
 
-        cv2.imshow("NPU Office Context", frame)
+        # --- TASK C: SHELL LOGGING LOGIC ---
+        # Detect new items that weren't there in the previous log cycle
+        new_detections = current_frame_items - active_items
+        if (new_detections or (current_frame_items != active_items)) and (time.time() - last_log_time > 2):
+            timestamp = time.strftime("%H:%M:%S")
+            if current_frame_items:
+                print(f"[{timestamp}] DETECTED: {', '.join(current_frame_items)}")
+            else:
+                print(f"[{timestamp}] STATUS: Workspace Clear")
+            
+            active_items = current_frame_items
+            last_log_time = time.time()
+
+        cv2.imshow("NPU Security & Privacy Lab", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'): break
 
     cap.release()
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    run_context_aware_lab()
+    run_logging_security_lab()
 ~~~
 
 ## Run the Lab
