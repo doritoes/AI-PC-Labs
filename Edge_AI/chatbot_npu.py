@@ -20,7 +20,7 @@ def run_npu_chatbot():
     }
     
     # The LLMPipeline handles tokenization and execution on the NPU
-    pipe = ov_genai.LLMPipeline(model_path, "NPU", config)
+    pipe = ov_genai.LLMPipeline(model_path, "NPU", **config)
 
     print("\n" + "="*50)
     print("NPU CHATBOT ONLINE (Type 'quit' to stop)")
