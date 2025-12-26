@@ -16,17 +16,22 @@ Key Learning: "Double Buffering." Students learn how the CPU handles the "Pre-pr
 
 Deliverable: A live video window with real-time bounding boxes running smoothly on the NPU.
 
-
-## Download the Detection Models
-We will use the SSDLite MobileNet V2 for general objects and the Face Detection Retail model for the privacy layer.
-1. Open PowerShell and start in the project folder
+## Install ultralytics
+1. Ensure the Python virtual environment is active
+    - Open a new PowerShell window
     - `cd "$env:USERPROFILE\Edge-AI"`
-2. `cd models`
-3. `curl.exe -L https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/3/ssdlite_mobilenet_v2/FP16/ssdlite_mobilenet_v2.xml --output office_detection.xml`
-4. `curl.exe -L https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/3/ssdlite_mobilenet_v2/FP16/ssdlite_mobilenet_v2.bin --output office_detection.bin`
-5. `curl.exe -L https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/3/face-detection-retail-0004/FP16/face-detection-retail-0004.xml --output face_detection.xml`
-6. `curl.exe -L https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/3/face-detection-retail-0004/FP16/face-detection-retail-0004.bin --output face_detection.bin`
-5. `cd ..`
+    - `.\nputest_env\Scripts\Activate`
+2. `pip install ultralytics`
+
+## Download the Model
+The XML file is the blueprint or structure. The BIN file is the brains, the weighted values
+1. Open PowerShell
+2. `cd "$env:USERPROFILE\Edge-AI"`
+3. `cd models`
+4. `curl.exe -L "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/3/face-detection-retail-0004/FP16/face-detection-retail-0004.xml" --output face_detection.xml`
+5. `curl.exe -L "https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/3/face-detection-retail-0004/FP16/face-detection-retail-0004.bin" --output face_detection.bin`
+6. `cd ..`
+
 
 ## Create the Smart Privacy Surveillance Script
 This script manages two different NPU "inference requests" in a single loop.
@@ -34,74 +39,106 @@ This script manages two different NPU "inference requests" in a single loop.
 smart_privacy_npu.py
 ~~~
 import cv2
-import openvino as ov
 import numpy as np
+import openvino as ov
+from ultralytics import YOLO
+import os
+import time
 
-def run_combined_lab():
-    core = ov.Core()
+def run_context_aware_lab():
+    # 1. HARDWARE INIT
+    model_path = "models/yolov8n_openvino_model/yolov8n.xml"
+    face_path = "models/face_detection.xml"
     
-    # Load Models to NPU
-    obj_model = core.compile_model(core.read_model("models/office_detection.xml"), "NPU")
-    face_model = core.compile_model(core.read_model("models/face_detection.xml"), "NPU")
-
-    # Labels for the Office Model
-    target_labels = {1: "PERSON", 15: "CHAIR", 62: "MONITOR", 63: "LAPTOP", 67: "TABLE"}
+    core = ov.Core()
+    device = "NPU" if "NPU" in core.available_devices else "CPU"
+    
+    c_yolo = core.compile_model(core.read_model(model_path), device)
+    c_face = core.compile_model(core.read_model(face_path), device)
+    
+    class_names = YOLO('yolov8n.pt').names
+    # Expanded list to prevent "Mis-labeling" (e.g., keyboard -> laptop)
+    office_list = ['person', 'chair', 'book', 'cup', 'laptop', 'keyboard', 'mouse', 'monitor', 'tv']
     
     cap = cv2.VideoCapture(0)
-    print("Dual-Model NPU Surveillance Active. Press 'q' to quit.")
+
+    print("\n" + "="*50)
+    print("OFFICE CONTEXT LAB: ACTIVE")
+    print(">> QUIT: Press 'Q' in the video window.")
+    print("="*50 + "\n")
 
     while True:
         ret, frame = cap.read()
         if not ret: break
         h, w = frame.shape[:2]
 
-        # --- STEP 1: FACE DETECTION & BLUR ---
-        face_blob = cv2.resize(frame, (300, 300)).transpose((2, 0, 1)).reshape(1, 3, 300, 300)
-        face_results = face_model(face_blob)[face_model.output(0)].reshape(-1, 7)
+        # --- TASK A: NPU FACE BLUR ---
+        f_blob = cv2.resize(frame, (300, 300)).transpose((2, 0, 1)).reshape(1, 3, 300, 300)
+        f_hits = c_face([f_blob])[c_face.output(0)]
+        for hit in f_hits[0][0]:
+            if hit[2] > 0.5:
+                x1, y1, x2, y2 = int(hit[3]*w), int(hit[4]*h), int(hit[5]*w), int(hit[6]*h)
+                roi = frame[max(0,y1):y2, max(0,x1):x2]
+                if roi.size > 0:
+                    frame[max(0,y1):y2, max(0,x1):x2] = cv2.GaussianBlur(roi, (99, 99), 30)
+
+        # --- TASK B: TUNED OBJECT DETECTION ---
+        input_img = cv2.resize(frame, (640, 640)).astype(np.float32) / 255.0
+        blob = input_img.transpose(2, 0, 1).reshape(1, 3, 640, 640)
         
-        for face in face_results:
-            if face[2] > 0.5: # Confidence
-                fx1, fy1 = int(face[3] * w), int(face[4] * h)
-                fx2, fy2 = int(face[5] * w), int(face[6] * h)
-                # Crop and Blur
-                face_zone = frame[max(0,fy1):min(h,fy2), max(0,fx1):min(w,fx2)]
-                if face_zone.size > 0:
-                    blurred = cv2.GaussianBlur(face_zone, (51, 51), 30)
-                    frame[max(0,fy1):min(h,fy2), max(0,fx1):min(w,fx2)] = blurred
-
-        # --- STEP 2: OBJECT DETECTION & BOXES ---
-        obj_blob = cv2.resize(frame, (300, 300)).transpose((2, 0, 1)).reshape(1, 3, 300, 300)
-        obj_results = obj_model(obj_blob)[obj_model.output(0)].reshape(-1, 7)
-
-        for obj in obj_results:
-            conf = obj[2]
-            class_id = int(obj[1])
-            if conf > 0.5 and class_id in target_labels:
-                label = target_labels[class_id]
-                ox1, oy1 = int(obj[3] * w), int(obj[4] * h)
-                ox2, oy2 = int(obj[5] * w), int(obj[6] * h)
+        results = c_yolo([blob])[c_yolo.output(0)]
+        data = np.squeeze(results).T 
+        
+        boxes, confs, ids = [], [], []
+        for row in data:
+            scores = row[4:]
+            c_id = np.argmax(scores)
+            conf = scores[c_id]
+            
+            # DYNAMIC THRESHOLD: Lower threshold for items, keep it high for person
+            # This helps the NPU 'see' the book and cup which are smaller/lower contrast
+            thresh = 0.45 if class_names[c_id] in ['book', 'cup', 'chair'] else 0.60
+            
+            if conf > thresh and class_names[c_id] in office_list:
+                cx, cy, bw, bh = row[:4]
+                rx, ry = int((cx - bw/2) * (w/640)), int((cy - bh/2) * (h/640))
+                rw, rh = int(bw * (w/640)), int(bh * (h/640))
                 
-                # Draw Box and Label
-                cv2.rectangle(frame, (ox1, oy1), (ox2, oy2), (0, 255, 0), 2)
-                cv2.putText(frame, f"{label} {conf:.2f}", (ox1, oy1-10), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                boxes.append([rx, ry, rw, rh])
+                confs.append(float(conf))
+                ids.append(c_id)
 
-        cv2.imshow("NPU Smart Privacy Surveillance", frame)
+        # NMS cleanup to prevent box flickering
+        indices = cv2.dnn.NMSBoxes(boxes, confs, 0.45, 0.4)
+        
+        if len(indices) > 0:
+            for i in indices.flatten():
+                label = class_names[ids[i]].upper()
+                bx, by, bw, bh = boxes[i]
+                
+                # Visuals
+                cv2.rectangle(frame, (bx, by), (bx + bw, by + bh), (0, 255, 0), 2)
+                cv2.putText(frame, f"{label} {confs[i]:.2f}", (bx, by - 10), 0, 0.5, (0, 255, 0), 2)
+
+        cv2.imshow("NPU Office Context", frame)
         if cv2.waitKey(1) & 0xFF == ord('q'): break
 
     cap.release()
     cv2.destroyAllWindows()
 
 if __name__ == "__main__":
-    run_combined_lab()
+    run_context_aware_lab()
 ~~~
 
 ## Run the Lab
 The "Handoff": OpenCV (running on CPU) handles the webcam and the blur effect, but OpenVINO (running on NPU) handles the "intelligence" of finding the face.
 
 1. Connect the webcam to the HP Mini
-2. `smart_privacy_npu.py`
-3. Observe
+2. `python smart_privacy_npu.py`
+    - The first time there is a long delay before the webcam window appears
+    - Downloading yoyo,
+    - NPU is compiling the model's math into blob format; CPU will spike while preparing the model, then NPU takes over
+4. Observe
     * Smoothness Test: Look at the video window. Is it laggy? (Running two AI models on standard CPU usually causes video to stutter; the NPU should be providing nearly 30+ FPS)
     * Task Manager Check: Switch to Performance tab; NPU should show steady "sawtooth" or solid block of usage; CPU should remain very low (5-10%) as it is only "displaying" the window, not doing the AI math
 
