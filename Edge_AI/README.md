@@ -16,6 +16,7 @@ Mission:
 
 Materials:
 - Windows 11 PC with Intel Core Ultra  processor (dedicated NPU)
+- A webcam to capture video
 
 # Overview
 ## Hardware and Driver Verification
@@ -23,17 +24,12 @@ Ensure Windows kernal can "see" the AI hardware
 - Device Manager > Neural Processors
   - You should see Intel(R) AI Boost
 - Task Manager > Performance
-  - Loof for NPU 0 in the sidebar
+  - Look for NPU 0 in the sidebar
   
 ## Set up Python
 In this step you will set up the Python environment.
 
 [Python](1_Python.md)
-
-1. Install Python
-Download Python 3.10 or 3.11 from python.org.
-
-Crucial: During installation, check the box "Add Python to PATH".
 
 ## Install OpenVINO
 In this step you will install Intel OpenVINO
@@ -41,13 +37,40 @@ In this step you will install Intel OpenVINO
 [OpenVINO](2_OpenVINO.md)
 
 ## Lab 1 - NPU Demonstration
-Our first Lab demonstrating the Edge AI.
+Our first Lab demonstrating the Edge AI will demonstrate and benchmark AI workloads running at the CPU, GPU and NPU.
+
+[Image Classification](3_Image_Classification.md)
 
 
-## Lab 2
+## Lab 2 - Privacy-First Edge Vision
+Privacy-First Edge Vision (Object Detection)
 
-## Lab 3
+Goal: Build a "Smart Surveillance" application that detects objects (people, vehicles) in a video stream using only local hardware.
 
+Process: Use a YOLOv8 (You Only Look Once) model. Students will write a Python script using opencv to capture a webcam feed or video file and send frames to the NPU for processing.
+
+Measurement: "Inference time per frame" (ms).
+
+Key Learning: "Double Buffering." Students learn how the CPU handles the "Pre-processing" (resizing images) and "Post-processing" (drawing boxes) while the NPU handles the "Inference" (the actual math) in parallel.
+
+Deliverable: A live video window with real-time bounding boxes running smoothly on the NPU.
+
+## Lab 3 - Local Chatbot (OpenVINO GenAI)
+The Local Chatbot (OpenVINO GenAI)
+
+Goal: Run a Large Language Model (LLM) like Phi-3 or Llama-3 entirely offline.
+
+Process: Use the openvino-genai library (which you installed) to load a quantized (INT4) model.
+
+Measurement: "Tokens per second" and "Time to First Token" (TTFT).
+
+Key Learning: Understanding Quantization. Students learn how to shrink a multi-gigabyte model into a 2GB "weight" file so it fits into the NPU's memory. They will use the BEST_PERF hint to optimize the NPU's power.
+
+Script Snippet: Python
+
+import openvino_genai as ov_genai
+pipe = ov_genai.LLMPipeline("model_path", "NPU")
+print(pipe.generate("Explain Edge AI in three sentences.", max_new_tokens=100))
 
 ## Cleanup and Next Steps
 
