@@ -35,45 +35,37 @@ import sys
 def verify_npu_lab():
     print("--- OpenVINO 2025 NPU Verification ---")
     
-    # Initialize OpenVINO Core
+    # 1. Initialize Core (New 2025 namespace)
     core = ov.Core()
     
-    # 1. Hardware Check
     devices = core.available_devices
-    print(f"Detected Devices: {devices}")
-    
     if 'NPU' not in devices:
-        print("❌ ERROR: Intel AI Boost NPU not detected.")
-        print("Check if 'Intel(R) AI Boost' is visible in Windows Device Manager.")
+        print(f"❌ ERROR: NPU not detected. Found: {devices}")
         sys.exit(1)
 
-    # 2. Extract NPU Metadata
-    npu_name = core.get_property("NPU", "FULL_DEVICE_NAME")
-    print(f"✅ NPU Confirmed: {npu_name}")
+    print(f"✅ NPU Confirmed: {core.get_property('NPU', 'FULL_DEVICE_NAME')}")
 
-    # 3. Functional Test: Model Compilation
-    # We create a simple 'Identity' model to test the driver communication path
-    print("🔄 Testing NPU Driver (Level Zero) by compiling a test model...")
-    
-    # Define a simple 1x224x224 input (standard image size)
-    input_node = ov.runtime.opset13.parameter([1, 3, 224, 224], np.float32, name="input")
-    model = ov.Model(ov.runtime.opset13.relu(input_node), [input_node], "TestModel")
+    # 2. Create a simple model
+    input_node = ov.opset13.parameter([1, 3, 224, 224], np.float32, name="input")
+    model = ov.Model(ov.opset13.relu(input_node), [input_node], "VerificationModel")
     
     try:
-        # This is where the magic happens: offloading to NPU
+        print("🔄 Compiling test model to NPU...")
         compiled_model = core.compile_model(model, "NPU")
-        print("🚀 Success! The NPU has successfully compiled the test model.")
+        print("🚀 Success! Model compiled to NPU.")
         
-        # 4. Quick Inference Test
+        # 3. Inference Test
+        # In 2025, we use the input/output port objects directly as keys
         test_input = np.random.rand(1, 3, 224, 224).astype(np.float32)
-        infer_request = compiled_model.create_infer_request()
-        infer_request.infer({input_node.any_name: test_input})
         
-        print("✨ Inference complete. Your HP EliteDesk NPU is 100% ready for the lab.")
+        # Method: Run inference directly on the compiled model
+        results = compiled_model(test_input)
+        
+        # Access results using the output port index
+        print("✨ Inference complete. NPU is 100% operational.")
         
     except Exception as e:
-        print(f"❌ COMPILATION ERROR: {e}")
-        print("\nTip: Ensure your Intel NPU drivers are updated to version 32.0.100.x or higher.")
+        print(f"❌ ERROR: {e}")
 
 if __name__ == "__main__":
     verify_npu_lab()
