@@ -6,41 +6,38 @@ def run_npu_chatbot():
     # 1. HARDWARE ENVIRONMENT STABILITY
     os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
     
-    # 2. PATH SETUP
     model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
 
-    if not os.path.exists(model_path):
-        print(f"ERROR: Model not found at {model_path}")
-        return
-
-    # 3. INITIALIZE NPU (Stability Over-ride)
+    # 2. INITIALIZE NPU (Static Shape Enforcement)
     print("\n" + "-"*50)
-    print("INITIALIZING INTEL NPU (BYPASSING NPUW OPTIMIZER)")
-    print(f"MODEL: Qwen2.5-1.5B-Instruct (INT4)")
-    print("-"*50)
+    print("INITIALIZING NPU: FORCING STATIC SHAPE MODE")
+    print("-" * 50)
     
-    # We are explicitly turning OFF 'NPUW' which is causing the MatMul crash
+    # NPU_USE_NPUW: NO - prevents the MatMul map error
+    # NPU_COMPILATION_MODE_HINT: static - fixes the 'dynamic shape' crash
+    # PERFORMANCE_HINT: LATENCY - ensures speed
     config = {
         "NPU_USE_NPUW": "NO",
+        "NPU_COMPILATION_MODE_HINT": "static",
         "PERFORMANCE_HINT": "LATENCY"
     }
 
     try:
-        # With NPU_USE_NPUW set to NO, this should bypass the erroring code path
+        # We load the model with the static hint
         pipe = ov_genai.LLMPipeline(model_path, "NPU", **config)
     except Exception as e:
         print(f"\n[CRITICAL ERROR]: {e}")
+        print("\nTEACHER NOTE: If this fails, the Qwen model export itself is incompatible with NPU static requirements.")
         return
 
-    # 4. CHAT INTERFACE
+    # 3. CHAT INTERFACE
     print("\n" + "="*50)
-    print("NPU CHATBOT ONLINE (Type 'quit' to exit)")
+    print("NPU CHATBOT ONLINE (Static Mode)")
     print("="*50)
 
     while True:
         prompt = input("\nStudent: ")
         if prompt.lower() in ['quit', 'exit']: break
-        if not prompt.strip(): continue
 
         start_time = time.time()
         first_token_time = None
@@ -57,20 +54,13 @@ def run_npu_chatbot():
             return ov_genai.StreamingStatus.RUNNING
 
         try:
-            pipe.generate(prompt, max_new_tokens=256, streamer=streamer)
+            # We limit the max tokens to 128 to ensure it stays in the static buffer
+            pipe.generate(prompt, max_new_tokens=128, streamer=streamer)
         except Exception as e:
             print(f"\n[GENERATION ERROR]: {e}")
             break
 
-        # METRICS
-        end_time = time.time()
-        ttft = (first_token_time - start_time) * 1000 if first_token_time else 0
-        gen_duration = end_time - first_token_time if first_token_time else 0
-        tps = token_count / gen_duration if gen_duration > 0 else 0
-
-        print(f"\n\n" + "-"*40)
-        print(f"NPU PERFORMANCE: TTFT {ttft:.2f}ms | TPS {tps:.2f}")
-        print(f"-"*40)
+        print(f"\n\n(NPU Stats: {token_count} tokens generated)")
 
 if __name__ == "__main__":
     run_npu_chatbot()
