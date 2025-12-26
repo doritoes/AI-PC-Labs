@@ -1,5 +1,13 @@
 # Edge AI Lab
-The mission in this Lab is to create genuine hands-on experience for technology learners using the learner-friendly NUC PCs.
+The mission in this Lab is to create genuine hands-on experience for technology learners using the learner-friendly NUC PCs. This is a good "first AI Lab" that demonstrates the power of the NPU. We will compare NPU vs. CPU performance.
+
+NOTE Intel NPUs currently perform best when accessed directly from Windows. The NPU driver support inside the Linux kernel for WSL is still maturing.
+
+IMPORTANT Be aware that the drivers and models and versions are very fluid, and what works today might not working tomorrow!
+- To get the chatbot to work, updated drivers were required that support OpenVINO
+- Ran into dynamic shape error, because the NPU driver (v4545) requires a "fixed map" of the math it is about to perform
+- Had to bypass the NPUW optimizer because it currently lacks a "map" for the specific architecture of Qwen2.5 lm_head layer, leading to a "MatMul map" crash
+- Level Zero (L0) Hardware Abstraction was disabled, forced OpenVINO to use a more stable communication path to the silicon, preventing memory sync errors between the system RAM and the NPU's local scratchpad. The dedicated L0 memory was unable to be resserted
 
 Prerequisites:
 - Window 11 Pro already installed and configured
@@ -14,40 +22,109 @@ Mission:
 
 Materials:
 - Windows 11 PC with Intel Core Ultra  processor (dedicated NPU)
+- A webcam to capture video
 
 # Overview
+## Hardware and Driver Verification
+Ensure Windows kernal can "see" the AI hardware
+- Device Manager > Neural Processors
+  - You should see Intel(R) AI Boost
+- Task Manager > Performance
+  - Look for NPU 0 in the sidebar
+  
 ## Set up Python
 In this step you will set up the Python environment.
 
 [Python](1_Python.md)
-
 
 ## Install OpenVINO
 In this step you will install Intel OpenVINO
 
 [OpenVINO](2_OpenVINO.md)
 
-## NPU Demonstration
+## Lab 1 - NPU Demonstration
+Our first Lab demonstrating the Edge AI will demonstrate and benchmark AI workloads running at the CPU, GPU and NPU.
 
-## Lab 2
-
-## Lab 3
-
-
-## Cleanup and Next Steps
-
-Steps required to clean up after the Lab is complete
-
-Additional project ideas
-1. Project 1: The Privacy-First Smart Camera
-    - Goal: Build a real-time object detection system that blurs human faces locally before any data is saved or streamed.
-    - Why NPU: It demonstrates real-time processing without slowing down the rest of the OS.
-2. Project 2: Local LLM Chatbot
-    - Goal: Use OpenVINO GenAI to run a small Large Language Model (like Llama 3 or Phi-3) entirely offline.
-    - Why NPU: Students can see how the NPU handles the "thinking" (text generation) while the GPU remains free for the UI or other tasks.
-3. Project 3: AI-Driven "System Health" Monitor
-    - Goal: Create a script that uses a Time-Series AI model to predict when the homelab server might overheat based on fan speeds and workload.
-    - Why NPU: This is a classic "background task" that should run 24/7 without wasting the PC's main power.
+[Image Classification](3_Image_Classification.md)
 
 
-Clean
+## Lab 2 - Privacy-First Edge Vision
+Privacy-First Edge Vision (Object Detection)
+
+[Privacy-First Edge Vision](4_Privacy_Edge_Vision.md)
+
+Goal: Build a "Smart Surveillance" application that detects objects (people, vehicles) in a video stream using only local hardware.
+
+Process: Use a YOLOv8 (You Only Look Once) model. Students will write a Python script using opencv to capture a webcam feed or video file and send frames to the NPU for processing.
+
+Measurement: "Inference time per frame" (ms).
+
+Key Learning: "Double Buffering." Students learn how the CPU handles the "Pre-processing" (resizing images) and "Post-processing" (drawing boxes) while the NPU handles the "Inference" (the actual math) in parallel.
+
+Deliverable: A live video window with real-time bounding boxes running smoothly on the NPU.
+
+## Lab 3 - Local Chatbot (OpenVINO GenAI)
+The Local Chatbot (OpenVINO GenAI)
+
+[Local Chatbot](5_Local_Chatbot.md)
+
+Goal: Run a Large Language Model (LLM) like Phi-3 or Llama-3 entirely offline.
+
+Process: Use the openvino-genai library (which you installed) to load a quantized (INT4) model.
+
+Measurement: "Tokens per second" and "Time to First Token" (TTFT).
+
+Key Learning: Understanding Quantization. Students learn how to shrink a multi-gigabyte model into a 2GB "weight" file so it fits into the NPU's memory. They will use the BEST_PERF hint to optimize the NPU's power.
+
+Script Snippet: Python
+
+import openvino_genai as ov_genai
+pipe = ov_genai.LLMPipeline("model_path", "NPU")
+print(pipe.generate("Explain Edge AI in three sentences.", max_new_tokens=100))
+
+## Cleanup
+Steps required to clean up after the Lab is complete.
+
+~~~
+# 1. Deactivate the environment if it is currently active
+if ($env:VIRTUAL_ENV) { deactivate }
+
+# 2. Remove the main project directory and all contents (Models, Env, Scripts)
+$ProjectDir = "$env:USERPROFILE\Edge-AI"
+if (Test-Path $ProjectDir) {
+    Write-Host "Removing Project Directory: $ProjectDir" -ForegroundColor Yellow
+    Remove-Item -Path $ProjectDir -Recurse -Force
+}
+
+# 3. Remove the hidden Hugging Face cache (The heavy 'blob' files)
+$HFCache = "$env:USERPROFILE\.cache\huggingface"
+if (Test-Path $HFCache) {
+    Write-Host "Removing Hugging Face Cache: $HFCache" -ForegroundColor Yellow
+    Remove-Item -Path $HFCache -Recurse -Force
+}
+
+# 4. Remove OpenVINO's default internal cache (if any was created)
+$OVConfig = "$env:USERPROFILE\AppData\Local\OpenVINO"
+if (Test-Path $OVConfig) {
+    Remove-Item -Path $OVConfig -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Write-Host "Cleanup Complete. All Edge-AI components removed." -ForegroundColor Green
+~~~
+
+## Final Thoughts
+1. AI Hardware is Not "One Size Fits All" - Code written for a CPU does not automatically work on an NPU.
+    - Learning: CPUs are Generalists (flexible but power-hungry), while NPUs are Specialists (rigid but highly efficient).
+    - Evidence: The NPU required a specific "Compilation" step to map the model's math to its physical transistors—something a CPU's "Interpreter" approach skips.
+2. The "Static Shape" Constraint - The most significant hurdle was the NPU's inability to handle dynamic data sizes.
+    - The Learning: High-efficiency silicon often requires Deterministic Memory. We had to tell the hardware exactly how much space to reserve for the prompt (MAX_PROMPT_LEN) and the response (MIN_RESPONSE_LEN).
+    - Insight: In the world of NPUs, "flexibility" is often traded for "predictability." If the data doesn't fit the "train tracks" we laid down, the system crashes.
+3. Quantization: The Art of the Compromise
+    - Running a massive model like Qwen (1.5 billion parameters) on a laptop was only possible through 4-bit Quantization (INT4)
+    - Learning: Shrinking a model makes it small enough to fit in the NPU's local memory, but it introduces "rounding errors"
+    - Evidence: Students saw the model correctly identify a math formula but fail the actual arithmetic. This teaches that quantized models should be used for language tasks, not as high-precision calculators.
+4. Optimization vs. Stability (The "Bleeding Edge") - The lab required several "workarounds" (like disabling NPUW and L0 environment variables) to achieve stability.
+    - Learning: Software drivers and hardware are often out of sync. Developers must sometimes disable "advanced" optimization features to ensure "basic" reliability.
+    - Insight: Being an AI Developer means knowing how to look at low-level logs (like the MatMul map error) and adjusting hardware-level flags to bridge the gap between the model and the silicon.
+
+All the workarounds effectively turned a "General Intelligence" model into a Fixed-Function Appliance. For the purpose of the lab, it demonstrated that while NPUs are the future of efficiency, they currently require a "Handshake" between the developer and the hardware—manually defining the boundaries that the hardware is not yet flexible enough to find on its own.
