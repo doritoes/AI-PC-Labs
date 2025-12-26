@@ -30,7 +30,13 @@ Read more at: https://blog.roboflow.com/what-is-resnet-50/
     - `cd ..`
 
 ## Performance Baseline (CPU)
-OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --help`
+OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --help`.
+
+The numbers [1,3,224,224] is a standard "Tensor Shape" in computer vision
+- 1 (Batch Size): We are sending 1 image at a time.
+- 3 (Channels): The image has 3 color layers (Red, Green, Blue).
+- 224 (Height): The image is 224 pixels tall
+- 224 (Width): The image is 224 pixels wide.
 
 1. Run the benchmark
     - `benchmark_app -m models/resnet50.onnx -d CPU -t 30 -shape [1,3,224,224]`
