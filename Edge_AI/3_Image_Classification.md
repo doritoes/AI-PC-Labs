@@ -15,7 +15,7 @@ NPU Throughput Test
 benchmark_app -m resnet50.xml -d NPU -hint throughput
 
 ## Download a Test Model
-We are doing to work with the "Vision Hierarchy" (The 50 Layers) model. It was released in 2015, and is still notable in the history of image classification.
+We are doing to work with the "Vision Hierarchy" (The 50 Layers) model. It was released in 2015, and is still notable in the history of image classification. It recognizes over 1,000 different types of objects.
 
 The "50" in ResNet-50 stands for the 50 layers of neurons the data must pass through. Think of this like a filter system:
 - Initial Layers (The Simple Eye): These layers look for basic things like lines, edges, and dots. They don't know what a "dog" is; they just see a vertical line or a brown curve.
