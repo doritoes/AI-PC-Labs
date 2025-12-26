@@ -37,6 +37,16 @@ To avoid issues, we will download the pre-quantized INT4 version
     - TTFT (time to first token) How long it takes for the AI to "start" talking
     - TPS (tokens per second) The reading speed. Human reading speed is ~5-8 tokens/second
 
+NOTE If you get a crash, make sure you have the python environment activated. If you need to, you can clear the cache and make it recompile for the NPU: `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\OpenVINO\cache" -ErrorAction SilentlyContinue`
+
+Same test prompts:
+1. Reading & Math
+    - If I have 3 oranges and you give me 2 more, but then I eat one and give half of what's left to my friend, how many oranges do I have? Walk me through your thinking step-by-step.
+2. Creativity and Context
+    - Write a short sci-fi story about a world where everyone has a personal NPU chip in their brain that helps them remember everything perfectly, but one day yours starts to glitch.
+3. Concise Summarization
+    - Explain the difference between a CPU and an NPU to a 5-year-old in exactly three bullet points.
+
 ## Example in Python Script
 
 ~~~
