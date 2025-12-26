@@ -31,7 +31,7 @@ To avoid issues, we will download the pre-quantized INT4 version
 2. `python .\chatbot_npu.py`
     - That "long time" you're experiencing is actually a healthy sign that the hardware is working—this phase is known as First Ever Inference Latency (FEIL). Because the NPU is a specialized "streaming" processor rather than a general-purpose one like your CPU, it has to physically map the logic of the Phi-3 model into its own hardware-level execution circuits. For an LLM with billions of parameters, this often takes 2 to 5 minutes on the first run.
     - The NPU is "compiling" the model, turning generic AI code into specialized instructions for the processor
-    - Task Manager > Performane, then note the CPU is working
+    - Task Manager > Performance; note the CPU is working, and later the massive write to disk
     - The NPU is "building" the model's math structure for the first time. Once this is done, it is cached, and future starts will be nearly instant.
 4. Enter a series of prompts and record the metrics
     - TTFT (time to first token) How long it takes for the AI to "start" talking
