@@ -15,19 +15,24 @@ A "full-weight" LLM is like a high-resolution 4K movie, while a Quantized (INT4)
 5. Download the installer for the new driver from
     - https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html
     - In my lab I selected v4515 12/19/2025
-7. Install the driver
+6. Install the driver
     - Run the .exe
     - Reboot
+7. Always clean chache oafter a driver update
+    - `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\OpenVINO\cache"`
 
-## Downloading a Pre-Quantized TinyLlama-1.1B Model
-TinyLlama-1.1B uses a "vanilla" architecture that is essentially the baseline for NPU validation.
+## Downloading a Pre-Quantized Qwen2.5-1.5B Model
+Qwen2.5-1.5B is a dense, causal language model and part of the latest generation of the Qwen series developed by Alibaba Cloud. It is specifically engineered to be a "small-language model" (SLM) that delivers high-performance reasoning on edge devices like your Intel NPU.
+- Instruction Following: It adheres to "system prompts" much better than older 1B models
+- Coding: It can generate and debug Python snippets locally on your NPU
+- Roleplay/Tone: It can shift its persona (e.g., "Answer like a scientist") with high consistency
 
 - Activate the environment
   - `cd $env:USERPROFILE\Edge-AI`
   - `.\nputest_env\Scripts\Activate.ps1`
-- `hf download OpenVINO/TinyLlama-1.1B-Chat-v1.0-int4-ov --local-dir "$env:USERPROFILE\Edge-AI\models\tiny-llama"`
+- `hf download OpenVINO/Qwen2.5-1.5B-Instruct-int4-ov --local-dir "$env:USERPROFILE\Edge-AI\models\qwen-1.5b"`
   - Weight compression: original model FP16 (16 bits per number), converting to INT4 (4 bits per number)
-  - Memory footprint: shrings from ~2.2GB to ~630MB
+  - Memory footprint: shrinks from ~3.1GB to ~950MB
   - Without shrinking, the model wouldn't fit into the NPU's dedicated high-speed cache, forcing it to use slower system RAM
 
 ## Create the NPU Chatbot Script
@@ -47,13 +52,25 @@ TinyLlama-1.1B uses a "vanilla" architecture that is essentially the baseline fo
 
 NOTE If you get a crash, make sure you have the python environment activated. If you need to, you can clear the cache and make it recompile for the NPU: `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\OpenVINO\cache" -ErrorAction SilentlyContinue`
 
-Same test prompts:
+Some test prompts:
 1. Reading & Math
     - If I have 3 oranges and you give me 2 more, but then I eat one and give half of what's left to my friend, how many oranges do I have? Walk me through your thinking step-by-step.
 2. Creativity and Context
     - Write a short sci-fi story about a world where everyone has a personal NPU chip in their brain that helps them remember everything perfectly, but one day yours starts to glitch.
 3. Concise Summarization
     - Explain the difference between a CPU and an NPU to a 5-year-old in exactly three bullet points.
+4. Math and LLM Mistakes
+    - How can I convert 12 degrees Fahrenheit to Celsius?
+    - NOTE how the LLM gets it incorrect! (chould be -11.1111 degrees C)
+        - Tokenization vs. Math: LLMs don't "do math" with a calculator; they predict the next most likely piece of text (token). Because $32 \times \frac{5}{9}$ is a very common snippet in training data, the model's "attention" was pulled toward calculating that first, violating the parentheses.
+        - Quantization Impact: Using INT4 (4-bit) makes the model fast and small, but it can slightly degrade its ability to follow complex logical constraints compared to the full-sized FP16 version.
+
+## Give the Chatbot a Goal
+To make this a true "AI Assistant" lab, you can wrap the user's input in a template that gives the AI a personality or a specific goal. This is how "ChatGPT" is tuned to be helpful rather than just completing text.
+
+Here we add the "format_prompt" function to tell the model how to behave before it sees the user question.
+
+[chatbot_npu_goal.py](chatbot_npu_goal.py)
 
 ## Example in Python Script
 
@@ -63,3 +80,8 @@ pipe = ov_genai.LLMPipeline("model_path", "NPU")
 print(pipe.generate("Explain Edge AI in three sentences.", max_new_tokens=100))
 ~~~
 
+## Final Learnings Review
+1. Dedicated Hardware: You aren't using the CPU (the "Generalist") or the GPU (the "Artist"). You are using the NPU (the "Specialist") specifically designed for the matrix math that AI requires.
+2. Quantization: By turning complex numbers into simple 4-bit integers, we made a 1.5-billion-parameter brain small enough to fit in a laptop's pocket.
+3. Local Privacy: Notice that your Wi-Fi could be turned off right now, and this would still work. No data left the room.
+4. Static Memory: We learned that NPUs prefer a "reserved seat" (Static Containers) rather than "finding a seat" (Dynamic Shapes) like a CPU does.
