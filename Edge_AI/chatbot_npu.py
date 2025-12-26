@@ -5,7 +5,7 @@ import shutil
 
 def run_npu_chatbot():
     # 1. HARDWARE ENVIRONMENT FIXES
-    # Force the L0 memory bypass to prevent 'Out of Host Memory' errors on some systems
+    # Force the L0 memory bypass to prevent 'Out of Host Memory' errors
     os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
     
     # 2. PATH SETUP
@@ -19,22 +19,20 @@ def run_npu_chatbot():
     # 3. INITIALIZE NPU WITH MODERN CONFIGURATION
     print("\n--- Initializing Intel NPU (AI PC Accelerator) ---")
     
-    # In newer 2025 drivers, settings are passed directly to the NPU
-    # NPU_RUN_INFERENCES_SEQUENTIALLY=OFF enables smooth token streaming
+    # NOTE: We removed 'NPUW_CONF' and replaced it with direct NPU properties
+    # to match the latest 2025 Intel NPU drivers.
     config = {
         "NPU_RUN_INFERENCES_SEQUENTIALLY": "OFF",
         "PERFORMANCE_HINT": "LATENCY"
     }
 
     try:
-        # The LLMPipeline handles tokenization and NPU execution
+        # Loading the pipeline directly to the NPU
         pipe = ov_genai.LLMPipeline(model_path, "NPU", **config)
     except Exception as e:
         print(f"\n[CRITICAL ERROR] NPU Initialization failed: {e}")
-        # Auto-clear cache if a mismatch is detected
-        if os.path.exists(cache_path):
-            print("Clearing corrupted NPU cache...")
-            shutil.rmtree(cache_path)
+        if "NPUW_CONF" in str(e):
+            print("Tip: Your driver requires direct NPU properties instead of NPUW_CONF.")
         return
 
     # 4. CHAT INTERFACE
@@ -44,24 +42,21 @@ def run_npu_chatbot():
 
     while True:
         prompt = input("\nStudent: ")
-        if prompt.lower() in ['quit', 'exit']: 
-            break
-        if not prompt.strip():
-            continue
+        if prompt.lower() in ['quit', 'exit']: break
+        if not prompt.strip(): continue
 
-        # Initialize metric trackers
+        # Metric Tracking
         start_time = time.time()
         first_token_time = None
         token_count = 0
 
         print("NPU Assistant: ", end="", flush=True)
 
-        # 5. STREAMER FUNCTION
+        # 5. STREAMER
         def streamer(subword):
             nonlocal first_token_time, token_count
             if first_token_time is None:
                 first_token_time = time.time()
-            
             print(subword, end="", flush=True)
             token_count += 1
             return ov_genai.StreamingStatus.RUNNING
@@ -73,13 +68,9 @@ def run_npu_chatbot():
             print(f"\n[GENERATION ERROR]: {e}")
             break
 
-        # 7. METRIC CALCULATION
+        # 7. METRICS
         end_time = time.time()
-        
-        # TTFT: How fast the NPU "prefills" the prompt and starts talking
         ttft = (first_token_time - start_time) * 1000 if first_token_time else 0
-        
-        # TPS: The generation throughput once it starts
         gen_duration = end_time - first_token_time if first_token_time else 0
         tps = token_count / gen_duration if gen_duration > 0 else 0
 
