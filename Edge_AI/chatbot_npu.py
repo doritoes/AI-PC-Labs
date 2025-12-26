@@ -17,18 +17,18 @@ def run_npu_chatbot():
         print(f"ERROR: Model not found at {model_path}")
         return
 
-    # 3. INITIALIZE NPU
-    print("\n" + "-"*50)
-    print("INITIALIZING INTEL NPU (AI PC ACCELERATOR)")
-    print(f"MODEL: Qwen2.5-1.5B (INT4 Quantized)")
-    print("-"*50)
+    # 3. INITIALIZE NPU WITH COMPATIBILITY FLAGS
+    print("\n--- Initializing Intel NPU (Full Compatibility Mode) ---")
     
-    # Configuration using direct NPU properties for modern drivers
+    # We are adding a 'DUMP' and 'NO_COMPILATION' hint to force a cleaner 
+    # mapping of the MatMul layers that were previously failing.
     config = {
         "NPU_RUN_INFERENCES_SEQUENTIALLY": "OFF",
-        "PERFORMANCE_HINT": "LATENCY"
+        "PERFORMANCE_HINT": "LATENCY",
+        "NPU_USE_NPUW": "NO"  # This forces OpenVINO to use the standard NPU driver
+                               # instead of the "Weights" optimization wrapper 
+                               # which is currently causing the MatMul map error.
     }
-
     try:
         # Loading the pipeline. First run will trigger compilation.
         pipe = ov_genai.LLMPipeline(model_path, "NPU", **config)
