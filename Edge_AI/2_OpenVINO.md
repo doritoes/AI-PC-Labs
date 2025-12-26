@@ -2,14 +2,29 @@
 In this step we install the bridge between Python and your Intel NPU.
 
 ## Install
-1. Ensure the Python virtual environment is active.
-    - `.\ai_lab_env\Scripts\Activate`
-2. Update and upgrade pop
-    - `python -m pip install --upgrade pip
-3. Install OpenVINO and essential AI PC libraries
-    - `pip install openvino==2025.4.1 openvino-genai==2025.4.1 opencv-python numpy`
-    - NOTE 'openvino-genai' is specifically designed for LLMs on the NPU
-  
+1. Install the C++ Redistributable
+    - NOTE This allows building from source in below steps
+    - https://visualstudio.microsoft.com/downloads/?q=build+tools
+    - Scroll down to **All Downloads** and locate **Build Tools for Visual Studio 2026**, click **Download**
+    - Launch the installer named similar to **VS_BuildTools.exe**
+    - Check the box and click **Install**
+    - Select the Workload, **Desktop development with C++**
+    - Click **Install**
+    - Click **Close**
+    - Reboot; the build commands are now in the PATH
+2. Ensure the Python virtual environment is active
+    - Open a <in>new PowerShell window</ins>
+    - `cd "$env:USERPROFILE\Edge-AI"`
+    - `.\nputest_env\Scripts\Activate`
+4. Update and upgrade pip
+    - `python -m pip install --upgrade pip`
+5. Install OpenVINO and essential AI PC libraries
+    - `pip install numpy`
+    - `pip install openvino==2025.4.1`
+    - `pip install openvino-genai==2025.4.1`
+        - NOTE 'openvino-genai' is specifically designed for LLMs on the NPU
+    - `pip install opencv-python`
+
 ## Test
 1. Create the NPU verification script `verify_npu.py`
 ~~~
