@@ -33,7 +33,7 @@ Read more at: https://blog.roboflow.com/what-is-resnet-50/
 OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --help`
 
 1. Run the benchmark
-    - `benchmark_app -m models/resnet50.onnx -d CPU -t 30`
+    - `benchmark_app -m models/resnet50.onnx -d CPU -t 30 -shape [1,3,224,224]`
 2. What to do while it runs:
     - Open Task Manager (Ctrl+Shift+Esc)
     - Watch the CPU graph; it should spike toward 100% usage
@@ -41,7 +41,7 @@ OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --
 
 ## Graphics Assist (GPU)
 1. Run the benchmark
-    - `benchmark_app -m models/resnet50.onnx -d GPU -t 30`
+    - `benchmark_app -m models/resnet50.onnx -d GPU -t 30 -shape [1,3,224,224]`
 2. What to do while it runs:
     - Open Task Manager (Ctrl+Shift+Esc)
     - Watch the GPU 0 graph
@@ -50,7 +50,7 @@ OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --
 
 ## Intel AI Boost (NPU)
 1. Run the benchmark
-    - `benchmark_app -m models/resnet50.onnx -d NPU -t 30`
+    - `benchmark_app -m models/resnet50.onnx -d NPU -t 30 -shape [1,3,224,224]`
 2. What to do while it runs:
     - Open Task Manager (Ctrl+Shift+Esc)
     - Watch the NPU graph; it will spike to 100%
@@ -60,6 +60,6 @@ OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --
 ## Analysis
 | Target Device | FPS | Median Latency (ms) | CPU Load (%) |
 |---|---|---|---|
-| CPU  |   |   | ~90-100%  |
-| GPU  |   |   | ~15-20%  |
-| NPU  |   |   | <5%  |
+| CPU  |  137.97 |   37.99 | ~90-100%  |
+| GPU  |  336.47 |  372.62 | ~10-15%   |
+| NPU  |  338.36 |   11.21 | <5%       |
