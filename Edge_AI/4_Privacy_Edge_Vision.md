@@ -180,3 +180,19 @@ if __name__ == "__main__":
     run_logged_surveillance()
 ~~~
 
+## Experiment and Learn
+This lab demonstrates a "Metadata Only" strategy. It doesn't just record video.
+1. The NPU processes the video
+2. The privacy filter blurs the faces
+3. The Logger creates a tine text file (.csv) that contains the important info
+Explain to students that a professional surveillance system doesn't just record video. Instead:
+
+Compare
+- Open the surveillance_log.csv in Excel or Notepad
+- How large is the log file after 1 minute of running? (usually only a few KB)
+- How large would 1 minute of 4K video be? (hundreds of MB)
+
+Stress Test
+- Walk in and out of the camera's view
+- Hold up a laptop or a chair
+- Verify that the CSV file correctly identifies the time and the object
