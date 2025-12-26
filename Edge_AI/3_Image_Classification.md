@@ -9,11 +9,6 @@ Measurement: Use the benchmark_app (packaged with OpenVINO) to capture Latency a
 
 Key Learning: Students observe Task Manager performance graphs. They should see a ~10-15x performance jump in latency on the NPU compared to the CPU, while the CPU usage remains near 0%.
 
-Command: ```powershell
-
-NPU Throughput Test
-benchmark_app -m resnet50.xml -d NPU -hint throughput
-
 ## Download a Test Model
 We are doing to work with the "Vision Hierarchy" (The 50 Layers) model. It was released in 2015, and is still notable in the history of image classification. It recognizes over 1,000 different types of objects.
 
@@ -26,56 +21,41 @@ The "ResNet" part refers to the Residual Networks family.
 
 Read more at: https://blog.roboflow.com/what-is-resnet-50/
 
-~~~
-# Create a folder for our models
-mkdir models
-cd models
-
-# Download the ResNet-50 model in ONNX format
-# (This is a standard 100MB model for image classification)
-curl.exe -L https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v1-12.onnx --output resnet50.onnx
-
-cd ..
-~~~
-
+1. Create a folder for our models
+    - `mkdir models`
+    - `cd models`
+2. Download the ResNet-50 model in ONNX format (standard 100MB model for image classification)
+    - `curl.exe -L https://github.com/onnx/models/raw/main/validated/vision/classification/resnet/model/resnet50-v1-12.onnx --output resnet50.onnx`
+3. Return to the previous directory
+    - `cd ..`
 
 ## Performance Baseline (CPU)
-OpenVINO includes the benchmark_app feature.
+OpenVINO includes the benchmark_app feature. To learn more run `benchmark_app --help`
 
-~~~
-benchmark_app --help
-benchmark_app -m models/resnet50.onnx -d CPU -t 30
-~~~
-
-What to do while it runs:
-- Open Task Manager (Ctrl+Shift+Esc)
-- Watch the CPU graph; it should spike toward 100% usage
-
-Note the Throughput (FPS) and Latency (ms) reported in the terminal at the end.
+1. Run the benchmark
+    - `benchmark_app -m models/resnet50.onnx -d CPU -t 30`
+2. What to do while it runs:
+    - Open Task Manager (Ctrl+Shift+Esc)
+    - Watch the CPU graph; it should spike toward 100% usage
+3. Note the Throughput (FPS) and Latency (ms) reported in the terminal at the end.
 
 ## Graphics Assist (GPU)
-~~~
-benchmark_app -m models/resnet50.onnx -d GPU -t 30
-~~~
-
-What to do while it runs:
-- Open Task Manager (Ctrl+Shift+Esc)
-- Wach the GPU 0 graph
-- Notice the CPU graph; it should drop significantly compared to the first test
-
-Check if the throughput (FPS) has increased. Generally, the GPU handles parallel tasks better than the CPU.
+1. Run the benchmark
+    - `benchmark_app -m models/resnet50.onnx -d GPU -t 30`
+2. What to do while it runs:
+    - Open Task Manager (Ctrl+Shift+Esc)
+    - Watch the GPU 0 graph
+    - Notice the CPU graph; it should drop significantly compared to the first test
+3. Check if the throughput (FPS) has increased. Generally, the GPU handles parallel tasks better than the CPU.
 
 ## Intel AI Boost (NPU)
-~~~
-benchmark_app -m models/resnet50.onnx -d NPU -t 30
-~~~
-
-What to do while it runs:
-- Open Task Manager (Ctrl+Shift+Esc)
-- Wach the NPU graph; it will spike to 100%
-- Look at the CPU and GPU graphs. They should be flat (near 0%)
-
-Note the throughput (FPS) has increased. The NPU is doing the exact same amount of work as the CPU was, but "silently" without "stealing" resources from the rest of the computer.
+1. Run the benchmark
+    - `benchmark_app -m models/resnet50.onnx -d NPU -t 30`
+2. What to do while it runs:
+    - Open Task Manager (Ctrl+Shift+Esc)
+    - Watch the NPU graph; it will spike to 100%
+    - Look at the CPU and GPU graphs. They should be flat (near 0%)
+3. Note the throughput (FPS) has increased. The NPU is doing the exact same amount of work as the CPU was, but "silently" without "stealing" resources from the rest of the computer.
 
 ## Analysis
 | Target Device | FPS | Median Latency (ms) | CPU Load (%) |
