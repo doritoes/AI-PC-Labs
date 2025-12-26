@@ -6,21 +6,29 @@ Phi-3-Mini's strengths lie in its impressive performance for its small size, off
 ## Quantization
 A "full-weight" LLM is like a high-resolution 4K movie, while a Quantized (INT4) model is like a compressed 720p version. It is smaller (2GB vs 8GB+) and faster, but keeps enough "intelligence" to chat fluently.
 
-## Downloading a Quantized Phi-3 Model
-Phi-3-mini is a very capable and small LLM. It is possible to download the full model and quantize it yourself:
-- `pip install optimum-intel[openvino,nncf]`
-- `pip install huggingface_hub[hf_xet]`
-- `optimum-cli export openvino --model microsoft/Phi-3-mini-4k-instruct --task text-generation-with-past --weight-format int4 --group-size 128 --ratio 1.0 "$env:USERPROFILE\Edge-AI\models\phi-3-mini-int4"`
-- WARNING there seems to be a conflict with how optimum-cli handles the "stateful" parameters of Phi-3
+## Updating to the Latest Driver
+1. Open device manager
+2. Expand Neural processors
+3. Double-click on Intel(R) AI Boost
+4. Note the driver date and version
+    - `2/6/2025` Driver Version 32.0.100.3717
+5. Download the installer for the new driver from
+    - https://www.intel.com/content/www/us/en/download/794734/intel-npu-driver-windows.html
+    - In my lab I selected v4515 12/19/2025
+7. Install the driver
+    - Run the .exe
+    - Reboot
 
-To avoid issues, we will download the pre-quantized INT4 version
+## Downloading a Pre-Quantized TinyLlama-1.1B Model
+TinyLlama-1.1B uses a "vanilla" architecture that is essentially the baseline for NPU validation.
+
 - Activate the environment
   - `cd $env:USERPROFILE\Edge-AI`
   - `.\nputest_env\Scripts\Activate.ps1`
-- `hf download OpenVINO/Phi-3-mini-4k-instruct-int4-ov --local-dir "$env:USERPROFILE\Edge-AI\models\phi-3-mini-int4"`
-- Weight compression: original model FP16 (16 bits per number), converting to INT4 (4 bits per number)
-- Memory footprint: shrings from ~7GB to ~2.2GB
-- Without shrinking, the model wouldn't fit into the NPU's dedicated high-speed cache, forcing it to use slower system RAM
+- `hf download OpenVINO/TinyLlama-1.1B-Chat-v1.0-int4-ov --local-dir "$env:USERPROFILE\Edge-AI\models\tiny-llama"`
+  - Weight compression: original model FP16 (16 bits per number), converting to INT4 (4 bits per number)
+  - Memory footprint: shrings from ~2.2GB to ~630MB
+  - Without shrinking, the model wouldn't fit into the NPU's dedicated high-speed cache, forcing it to use slower system RAM
 
 ## Create the NPU Chatbot Script
 [chatbot_npu.py](chatbot_npu.py)
