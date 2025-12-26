@@ -21,7 +21,7 @@ def run_npu_chatbot():
         os.makedirs(cache_dir)
 
     print("\n" + "="*50)
-    print("  INTEL NPU TUTOR BOT (Qwen 2.5 + v4515)  ")
+    print("  INTEL NPU TUTOR BOT (Qwen 2.5)")
     print("="*50)
     print("INITIALIZING: Mapping NPU pathways...")
 
@@ -42,13 +42,13 @@ def run_npu_chatbot():
         return
 
     print("\n" + "*"*50)
-    print("   SUCCESS: NPU ONLINE")
+    print("   SUCCESS: NPU online")
     print("   Type 'quit' to exit the program")
     print("*"*50)
 
     # 3. CHAT LOOP
     while True:
-        user_input = input("\nStudent: ")
+        user_input = input("\User: ")
         
         if user_input.lower() in ['quit', 'exit']:
             print("Shutting down NPU sessions... Goodbye!")
