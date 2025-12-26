@@ -40,8 +40,9 @@ In this step you will install Intel OpenVINO
 
 [OpenVINO](2_OpenVINO.md)
 
-## NPU Demonstration
-Were we will demonstrate
+## Lab 1 - NPU Demonstration
+Our first Lab demonstrating the Edge AI.
+
 
 ## Lab 2
 
@@ -62,6 +63,3 @@ Additional project ideas
 3. Project 3: AI-Driven "System Health" Monitor
     - Goal: Create a script that uses a Time-Series AI model to predict when the homelab server might overheat based on fan speeds and workload.
     - Why NPU: This is a classic "background task" that should run 24/7 without wasting the PC's main power.
-
-
-Clean
