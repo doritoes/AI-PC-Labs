@@ -45,6 +45,8 @@ Our first Lab demonstrating the Edge AI will demonstrate and benchmark AI worklo
 ## Lab 2 - Privacy-First Edge Vision
 Privacy-First Edge Vision (Object Detection)
 
+[Privacy-First Edge Vision](4_Privacy_Edge_Vision.md)
+
 Goal: Build a "Smart Surveillance" application that detects objects (people, vehicles) in a video stream using only local hardware.
 
 Process: Use a YOLOv8 (You Only Look Once) model. Students will write a Python script using opencv to capture a webcam feed or video file and send frames to the NPU for processing.
@@ -57,6 +59,8 @@ Deliverable: A live video window with real-time bounding boxes running smoothly 
 
 ## Lab 3 - Local Chatbot (OpenVINO GenAI)
 The Local Chatbot (OpenVINO GenAI)
+
+[Local Chatbot](5_Local_Chatbot.md)
 
 Goal: Run a Large Language Model (LLM) like Phi-3 or Llama-3 entirely offline.
 
