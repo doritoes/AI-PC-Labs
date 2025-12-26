@@ -16,7 +16,7 @@ def run_npu_chatbot():
         print(f"Created cache directory at: {cache_dir}")
 
     print("\n" + "="*50)
-    print("  INTEL NPU ACCELERATED CHATBOT (v4515)  ")
+    print("  Intel NPU Accelerated Chatbot (Qwen2.5-1.5B)  ")
     print("="*50)
     print("INITIALIZING: Mapping model to NPU (First run takes ~1 min)...")
 
@@ -45,7 +45,7 @@ def run_npu_chatbot():
 
     # 3. CHAT LOOP
     while True:
-        prompt = input("\nStudent: ")
+        prompt = input("\nUser: ")
         
         if prompt.lower() in ['quit', 'exit']:
             print("Shutting down NPU sessions... Goodbye!")
