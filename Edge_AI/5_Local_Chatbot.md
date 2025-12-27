@@ -61,7 +61,7 @@ Some test prompts:
     - Explain the difference between a CPU and an NPU to a 5-year-old in exactly three bullet points.
 4. Math and LLM Mistakes
     - How can I convert 12 degrees Fahrenheit to Celsius?
-    - NOTE how the LLM gets it incorrect! (chould be -11.1111 degrees C)
+    - NOTE how the LLM gets it incorrect! (should be -11.1111 degrees C)
         - Tokenization vs. Math: LLMs don't "do math" with a calculator; they predict the next most likely piece of text (token). Because $32 \times \frac{5}{9}$ is a very common snippet in training data, the model's "attention" was pulled toward calculating that first, violating the parentheses.
         - Quantization Impact: Using INT4 (4-bit) makes the model fast and small, but it can slightly degrade its ability to follow complex logical constraints compared to the full-sized FP16 version.
 5. Stump the Model
