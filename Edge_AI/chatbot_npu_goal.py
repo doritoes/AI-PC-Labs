@@ -1,6 +1,6 @@
-import openvino_genai as ov_genai
-import time
 import os
+import time
+import openvino_genai as ov_genai
 
 def format_prompt(user_query):
     """
@@ -14,7 +14,7 @@ def run_npu_chatbot():
     # 1. ENVIRONMENT & DIRECTORY SETUP
     os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
     model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
-    
+
     # Ensure cache directory exists for instant loading
     cache_dir = os.path.join(os.getcwd(), 'npu_cache')
     if not os.path.exists(cache_dir):
@@ -48,13 +48,14 @@ def run_npu_chatbot():
 
     # 3. CHAT LOOP
     while True:
-        user_input = input("\User: ")
-        
+        user_input = input("\nUser: ")
+
         if user_input.lower() in ['quit', 'exit']:
             print("Shutting down NPU sessions... Goodbye!")
             break
-        
-        if not user_input.strip(): continue
+
+        if not user_input.strip():
+            continue
 
         # Performance Tracking
         start_time = time.time()
@@ -77,16 +78,16 @@ def run_npu_chatbot():
         try:
             # We use do_sample=False for consistent, logical answers (Greedy Decoding)
             pipe.generate(formatted_input, max_new_tokens=256, streamer=streamer, do_sample=False)
-            
+
             # Show Performance Metrics
             end_time = time.time()
             if first_token_time:
                 ttft = (first_token_time - start_time) * 1000
                 gen_duration = end_time - first_token_time
                 tps = token_count / gen_duration if gen_duration > 0 else 0
-                
+
                 print(f"\n\n[METRICS] TTFT: {ttft:.1f}ms | Speed: {tps:.1f} tokens/sec")
-            
+
         except Exception as e:
             print(f"\n[GENERATION ERROR]: {e}")
             break

@@ -15,9 +15,9 @@ Download Python installer from Python.org Windows Downloads page
     - Click Customize installation
         - On the Optional Features screen, ensure pip, tcl/tk and IDLE, and Python test suite are all checked
         - Click **Next**
-3. On the Advanced Options screen:
-    - Check Install Python 3.14 for all users
-    - Check Precompile standard library
+3. On the **Advanced Options** screen:
+    - Check **Install Python 3.14 for all users**
+    - Check **Precompile standard library**
     - Click **Install**
 5. Disable Path Length Limit
     - At the very end of the installation, you will see a successful setup message

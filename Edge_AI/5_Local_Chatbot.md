@@ -18,14 +18,14 @@ A "full-weight" LLM is like a high-resolution 4K movie, while a Quantized (INT4)
 6. Install the driver
     - Run the .exe
     - Reboot
-7. Always clean chache oafter a driver update
+7. Always clean cache after a driver update
     - `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\OpenVINO\cache"`
 
 ## Downloading a Pre-Quantized Qwen2.5-1.5B Model
 Qwen2.5-1.5B is a dense, causal language model and part of the latest generation of the Qwen series developed by Alibaba Cloud. It is specifically engineered to be a "small-language model" (SLM) that delivers high-performance reasoning on edge devices like your Intel NPU.
 - Instruction Following: It adheres to "system prompts" much better than older 1B models
 - Coding: It can generate and debug Python snippets locally on your NPU
-- Roleplay/Tone: It can shift its persona (e.g., "Answer like a scientist") with high consistency
+- Role play/Tone: It can shift its persona (e.g., "Answer like a scientist") with high consistency
 
 - Activate the environment
   - `cd $env:USERPROFILE\Edge-AI`
@@ -61,7 +61,7 @@ Some test prompts:
     - Explain the difference between a CPU and an NPU to a 5-year-old in exactly three bullet points.
 4. Math and LLM Mistakes
     - How can I convert 12 degrees Fahrenheit to Celsius?
-    - NOTE how the LLM gets it incorrect! (chould be -11.1111 degrees C)
+    - NOTE how the LLM gets it incorrect! (should be -11.1111 degrees C)
         - Tokenization vs. Math: LLMs don't "do math" with a calculator; they predict the next most likely piece of text (token). Because $32 \times \frac{5}{9}$ is a very common snippet in training data, the model's "attention" was pulled toward calculating that first, violating the parentheses.
         - Quantization Impact: Using INT4 (4-bit) makes the model fast and small, but it can slightly degrade its ability to follow complex logical constraints compared to the full-sized FP16 version.
 5. Stump the Model
