@@ -54,7 +54,8 @@ def run_npu_chatbot():
             print("Shutting down NPU sessions... Goodbye!")
             break
 
-        if not user_input.strip(): continue
+        if not user_input.strip():
+            continue
 
         # Performance Tracking
         start_time = time.time()
