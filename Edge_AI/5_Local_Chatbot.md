@@ -18,7 +18,7 @@ A "full-weight" LLM is like a high-resolution 4K movie, while a Quantized (INT4)
 6. Install the driver
     - Run the .exe
     - Reboot
-7. Always clean chache oafter a driver update
+7. Always clean cache after a driver update
     - `Remove-Item -Recurse -Force "$env:LOCALAPPDATA\OpenVINO\cache"`
 
 ## Downloading a Pre-Quantized Qwen2.5-1.5B Model
