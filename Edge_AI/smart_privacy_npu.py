@@ -2,11 +2,11 @@ import os
 import csv
 import time
 import shutil
+import urllib.request
 import cv2
 import numpy as np
 import openvino as ov
 from ultralytics import YOLO
-import urllib.request
 
 def setup_and_run_complete_lab():
     # --- 1. DIRECTORY & ASSET SETUP ---
@@ -14,7 +14,7 @@ def setup_and_run_complete_lab():
     yolo_ov_dir = os.path.join(model_dir, "yolov8n_openvino_model")
     face_xml = os.path.join(model_dir, "face_detection.xml")
     face_bin = os.path.join(model_dir, "face_detection.bin")
-    
+
     if not os.path.exists(model_dir):
         os.makedirs(model_dir)
 
@@ -26,7 +26,7 @@ def setup_and_run_complete_lab():
     if not os.path.exists(yolo_ov_dir):
         print("Setup: Downloading/Exporting YOLOv8 for NPU...")
         tmp_model = YOLO('yolov8n.pt')
-        export_path = tmp_model.export(format='openvino', half=True) 
+        export_path = tmp_model.export(format='openvino', half=True)
         shutil.move(export_path, yolo_ov_dir)
 
     # Download OpenVINO Face Detection Model
@@ -85,7 +85,7 @@ def setup_and_run_complete_lab():
 
         y_raw = c_yolo([blob_y])[c_yolo.output(0)]
         predictions = np.squeeze(y_raw).T # Transpose to get boxes in rows
-        
+
         boxes, confs, class_ids = [], [], []
         frame_items = set()
 
@@ -132,7 +132,8 @@ def setup_and_run_complete_lab():
             last_log_time = time.time()
 
         cv2.imshow("NPU Intelligent Security Lab", frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'): break
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
 
     cap.release()
     cv2.destroyAllWindows()
