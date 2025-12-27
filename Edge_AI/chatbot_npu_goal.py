@@ -48,7 +48,7 @@ def run_npu_chatbot():
 
     # 3. CHAT LOOP
     while True:
-        user_input = input("\User: ")
+        user_input = input("\nUser: ")
         
         if user_input.lower() in ['quit', 'exit']:
             print("Shutting down NPU sessions... Goodbye!")
