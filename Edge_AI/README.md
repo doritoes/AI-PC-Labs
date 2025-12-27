@@ -7,7 +7,7 @@ IMPORTANT Be aware that the drivers and models and versions are very fluid, and 
 - To get the chatbot to work, updated drivers were required that support OpenVINO
 - Ran into dynamic shape error, because the NPU driver (v4545) requires a "fixed map" of the math it is about to perform
 - Had to bypass the NPUW optimizer because it currently lacks a "map" for the specific architecture of Qwen2.5 lm_head layer, leading to a "MatMul map" crash
-- Level Zero (L0) Hardware Abstraction was disabled, forced OpenVINO to use a more stable communication path to the silicon, preventing memory sync errors between the system RAM and the NPU's local scratchpad. The dedicated L0 memory was unable to be resserted
+- Level Zero (L0) Hardware Abstraction was disabled, forced OpenVINO to use a more stable communication path to the silicon, preventing memory sync errors between the system RAM and the NPU's local scratchpad. The dedicated L0 memory was unable to be reserved.
 
 Prerequisites:
 - Window 11 Pro already installed and configured
@@ -26,7 +26,7 @@ Materials:
 
 # Overview
 ## Hardware and Driver Verification
-Ensure Windows kernal can "see" the AI hardware
+Ensure Windows kernel can "see" the AI hardware
 - Device Manager > Neural Processors
   - You should see Intel(R) AI Boost
 - Task Manager > Performance
