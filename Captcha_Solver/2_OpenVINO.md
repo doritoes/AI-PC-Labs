@@ -1,6 +1,8 @@
 # Install OpenVINO
 In this step we install the bridge between Python and your Intel NPU.
 
+NOTE Since the Intel Core Ultra 7 265T is part of the newer Arrow Lake family, ensure you specify openvino>=2024.5 to guarantee support for the latest NPU features.
+
 ## Install
 1. Install the C++ Redistributable
     - NOTE This allows building from source in below steps
@@ -26,7 +28,10 @@ In this step we install the bridge between Python and your Intel NPU.
     - `pip install opencv-python`
 
 ## Test
-1. Create the NPU verification script `verify_npu.py`
+1. Test if NPU is visible to OpenVINO
+    - `python -c "import openvino as ov; core = ov.Core(); print(core.available_devices)"`
+    - Should see `['CPU', 'GPU', 'NPU']`
+2. Create the NPU verification script `verify_npu.py`
 ~~~
 import openvino as ov
 import numpy as np
@@ -71,4 +76,5 @@ if __name__ == "__main__":
     verify_npu_lab()
 ~~~
 
-2. Run the script: `python3 verify_npu.py`
+3. Run verification script
+    - `python verify_npu.py`
