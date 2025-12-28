@@ -30,3 +30,4 @@ These labs are designed to demonstrate practice AI skills leveraging Intel AI Bo
 Hands-on learning projects that provide exposure to multiple advanced technologies centered around an NPU-powered PC.
 
 1. Edge AI 1 ▶️ [Get Started!](Edge_AI/README.md)
+2. Captcha Solver ▶️ [Get Started!](Captcha_Solver/README.md)
