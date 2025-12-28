@@ -39,8 +39,11 @@ The model is currently using FP32 (32-bit floating point) math. The NPU on the C
     - [Convert to OpenVINO](5_Convert_OpenVINO.md)
 2. Quantization
     - [Quantize](6_Quantize.md)
+3. Inference on NPU
+    - [Captcha Simulator](7_CAPTCHA_Simulator.md)
 
-6. Inference on NPU - Write a script using core.compile_model(model, "NPU")
+
+4.  - Write a script using core.compile_model(model, "NPU")
     - Observe the "Task Manager > Performance" tab to see the NPU usage spike while the CPU remains idle
 7. Cybersecurity Lab Task - Create a "Brute Force Simulator" where the script must solve 100 CAPTCHAs in under 5 seconds to "bypass" a mock login portal
 
