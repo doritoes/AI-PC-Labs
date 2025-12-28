@@ -13,7 +13,7 @@ CAPTCHA_LENGTH = 4
 WIDTH, HEIGHT = 160, 60
 DATASET_SIZE = 10000
 BATCH_SIZE = 32
-TRAIN_SPLIT = 0.8 
+TRAIN_SPLIT = 0.8
 EPOCHS = 10  # Now using a global constant
 
 # --- 2. HARDWARE DETECTION ---
@@ -33,7 +33,7 @@ class CaptchaDataset(Dataset):
         label_str = "".join([np.random.choice(list(CHARS)) for _ in range(CAPTCHA_LENGTH)])
         img = self.generator.generate_image(label_str)
         img = np.array(img.convert('L')) / 255.0
-        img = torch.FloatTensor(img).unsqueeze(0)        
+        img = torch.FloatTensor(img).unsqueeze(0)
         label = torch.zeros(CAPTCHA_LENGTH, len(CHARS))
         for i, char in enumerate(label_str):
             label[i][CHARS.find(char)] = 1
@@ -93,7 +93,6 @@ for epoch in range(EPOCHS):
         loss.backward()
         optimizer.step()
         running_loss += loss.item()
-    
     print(f"Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss/len(train_loader):.4f}")
 end_time = time.perf_counter()
 total_train_time = end_time - start_time
