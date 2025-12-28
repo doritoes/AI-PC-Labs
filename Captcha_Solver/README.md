@@ -69,20 +69,3 @@ if (Test-Path $OVConfig) {
 
 Write-Host "Cleanup Complete. All Edge-AI components removed." -ForegroundColor Green
 ~~~
-
-## Final Thoughts
-1. AI Hardware is Not "One Size Fits All" - Code written for a CPU does not automatically work on an NPU.
-    - Learning: CPUs are Generalists (flexible but power-hungry), while NPUs are Specialists (rigid but highly efficient).
-    - Evidence: The NPU required a specific "Compilation" step to map the model's math to its physical transistors—something a CPU's "Interpreter" approach skips.
-2. The "Static Shape" Constraint - The most significant hurdle was the NPU's inability to handle dynamic data sizes.
-    - The Learning: High-efficiency silicon often requires Deterministic Memory. We had to tell the hardware exactly how much space to reserve for the prompt (MAX_PROMPT_LEN) and the response (MIN_RESPONSE_LEN).
-    - Insight: In the world of NPUs, "flexibility" is often traded for "predictability." If the data doesn't fit the "train tracks" we laid down, the system crashes.
-3. Quantization: The Art of the Compromise
-    - Running a massive model like Qwen (1.5 billion parameters) on a laptop was only possible through 4-bit Quantization (INT4)
-    - Learning: Shrinking a model makes it small enough to fit in the NPU's local memory, but it introduces "rounding errors"
-    - Evidence: Students saw the model correctly identify a math formula but fail the actual arithmetic. This teaches that quantized models should be used for language tasks, not as high-precision calculators.
-4. Optimization vs. Stability (The "Bleeding Edge") - The lab required several "workarounds" (like disabling NPUW and L0 environment variables) to achieve stability.
-    - Learning: Software drivers and hardware are often out of sync. Developers must sometimes disable "advanced" optimization features to ensure "basic" reliability.
-    - Insight: Being an AI Developer means knowing how to look at low-level logs (like the MatMul map error) and adjusting hardware-level flags to bridge the gap between the model and the silicon.
-
-All the workarounds effectively turned a "General Intelligence" model into a Fixed-Function Appliance. For the purpose of the lab, it demonstrated that while NPUs are the future of efficiency, they currently require a "Handshake" between the developer and the hardware—manually defining the boundaries that the hardware is not yet flexible enough to find on its own.
