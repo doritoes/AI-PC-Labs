@@ -13,7 +13,9 @@ In a lab setting, training a model for hours is boring. We are opting to use a s
     - Watch Task Manager > Performance > CPU
     - You should see all 20 threads engaging as it generates and processes the images
 
-
+NOTE The script reports the "loss". It's the "Error Score" or the "Difference between the AI's guess and the truth." In cybersecurity terms, it's like a lock-picking simulator. The more you practice, the fewer mistakes you make.
+- Expected to go down in each succeeding epoch
+- You should see a significant drop between Epoch 1 and Epoch 2, with the decrease becoming smaller (plateauing) as it reaches Epoch 5
 
 ## Save Model
 export the trained weights as .pth or .h5 file
