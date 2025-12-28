@@ -13,6 +13,7 @@ WIDTH, HEIGHT = 160, 60
 DATASET_SIZE = 10000 
 BATCH_SIZE = 32
 TRAIN_SPLIT = 0.8 # 80% train, 20% held back
+EPOCHS = 10
 
 # --- 2. DATASET GENERATOR ---
 class CaptchaDataset(Dataset):
@@ -78,7 +79,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 print("\nStarting training on CPU (20 threads)...")
 model.train()
-for epoch in range(10):
+for epoch in range(EPOCHS):
     running_loss = 0.0
     for images, labels in train_loader:
         optimizer.zero_grad()
@@ -88,7 +89,7 @@ for epoch in range(10):
         optimizer.step()
         running_loss += loss.item()
     
-    print(f"Epoch {epoch+1}/5 - Loss: {running_loss/len(train_loader):.4f}")
+    print(f"Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss/len(train_loader):.4f}")
 
 # --- 6. VALIDATION (The Final Exam) ---
 print("\nTesting model against held-back images...")
