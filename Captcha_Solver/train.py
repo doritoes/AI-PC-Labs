@@ -1,3 +1,4 @@
+import os
 import time
 import torch
 import torch.nn as nn
@@ -6,26 +7,25 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from captcha.image import ImageCaptcha
 import numpy as np
 
-
 # --- 1. CONFIGURATION ---
-CHARS = "0123456789" 
+CHARS = "0123456789"
 CAPTCHA_LENGTH = 4
 WIDTH, HEIGHT = 160, 60
-DATASET_SIZE = 10000 
+DATASET_SIZE = 10000
 BATCH_SIZE = 32
 TRAIN_SPLIT = 0.8 
 EPOCHS = 10  # Now using a global constant
 
 # --- 2. HARDWARE DETECTION ---
 # Dynamically get the number of logical threads
-SYSTEM_THREADS = os.cpu_count() or 1 
+SYSTEM_THREADS = os.cpu_count() or 1
 
 # --- 3. DATASET GENERATOR ---
 class CaptchaDataset(Dataset):
     def __init__(self, size):
         self.size = size
         self.generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
-        
+
     def __len__(self):
         return self.size
 
@@ -33,12 +33,10 @@ class CaptchaDataset(Dataset):
         label_str = "".join([np.random.choice(list(CHARS)) for _ in range(CAPTCHA_LENGTH)])
         img = self.generator.generate_image(label_str)
         img = np.array(img.convert('L')) / 255.0
-        img = torch.FloatTensor(img).unsqueeze(0) 
-        
+        img = torch.FloatTensor(img).unsqueeze(0)        
         label = torch.zeros(CAPTCHA_LENGTH, len(CHARS))
         for i, char in enumerate(label_str):
             label[i][CHARS.find(char)] = 1
-        
         return img, label.flatten()
 
 # --- 4. PREPARE DATA ---
@@ -97,7 +95,6 @@ for epoch in range(EPOCHS):
         running_loss += loss.item()
     
     print(f"Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss/len(train_loader):.4f}")
-
 end_time = time.perf_counter()
 total_train_time = end_time - start_time
 
@@ -112,10 +109,8 @@ with torch.no_grad():
         outputs = model(images)
         output_reshaped = outputs.view(-1, CAPTCHA_LENGTH, len(CHARS))
         labels_reshaped = labels.view(-1, CAPTCHA_LENGTH, len(CHARS))
-        
         pred_digits = output_reshaped.argmax(dim=2)
         true_digits = labels_reshaped.argmax(dim=2)
-        
         correct_indices = (pred_digits == true_digits).all(dim=1)
         correct += correct_indices.sum().item()
         total += labels.size(0)
