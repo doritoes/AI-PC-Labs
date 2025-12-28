@@ -35,9 +35,9 @@ Open a new PowerShell windows (not as Admin this time, just a regular user) and 
 ## Create the Virtual Environment
 To keep your student labs clean, never install AI libraries globally. Always use a virtual environment.
 1. Create project folder
-    - `mkdir "$env:USERPROFILE\Edge-AI"`
+    - `mkdir "$env:USERPROFILE\Captcha-AI"`
 2. Navigate to your project folder:
-    - `cd "$env:USERPROFILE\Edge-AI"`
+    - `cd "$env:USERPROFILE\Captcha-AI"`
 2. Create the environment:
     - `python -m venv nputest_env`
 3. Activate it:
