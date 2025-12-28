@@ -16,7 +16,7 @@ NOTE Since the Intel Core Ultra 7 265T is part of the newer Arrow Lake family, e
     - Reboot; the build commands are now in the PATH
 2. Ensure the Python virtual environment is active
     - Open a <in>new PowerShell window</ins>
-    - `cd "$env:USERPROFILE\Edge-AI"`
+    - `cd "$env:USERPROFILE\Captcha-AI"`
     - `.\nputest_env\Scripts\Activate`
 3. Update and upgrade pip
     - `python -m pip install --upgrade pip`
