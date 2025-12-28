@@ -90,5 +90,5 @@ for epoch in range(5): # 5 Epochs is enough for a lab
     print(f"Epoch {epoch+1} complete.")
 
 # --- 6. SAVE MODEL ---
-torch.save(model.state_state_dict(), "captcha_model.pth")
+torch.save(model.state_dict(), "captcha_model.pth")
 print("Model saved as captcha_model.pth")
