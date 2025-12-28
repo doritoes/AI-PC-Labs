@@ -1,6 +1,5 @@
 import openvino as ov
 import nncf
-import torch
 from torch.utils.data import DataLoader
 from train import CaptchaDataset  # Import your dataset class
 
