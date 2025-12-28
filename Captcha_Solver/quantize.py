@@ -5,6 +5,7 @@ from torch.utils.data import DataLoader
 from train import CaptchaDataset  # Import your dataset class
 
 # 1. Load the FP32 OpenVINO model
+print("Loading FP32 Model...")
 core = ov.Core()
 model = core.read_model("captcha_model.xml")
 
