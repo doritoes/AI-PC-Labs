@@ -37,12 +37,9 @@ The model is currently using FP32 (32-bit floating point) math. The NPU on the C
 
 1. Convert from PyTorch to OpenVINO
     - [Convert to OpenVINO](5_Convert_OpenVINO.md)
-    - WTH it looks like it's retraining!
 2. Quantization
     - [Quantize](6_Quantize.md)
-4. Model Conversion - Convert the trained model to the OpenVINO Intermediate Representation (IR) format
-5. Quantization (Crucial Step): Use OpenVINO’s NNCF to quantize the model to INT8
-    - The NPU (13 TOPS) performs best with INT8 math. Quantization reduces model size and increases speed with minimal accuracy loss.
+
 6. Inference on NPU - Write a script using core.compile_model(model, "NPU")
     - Observe the "Task Manager > Performance" tab to see the NPU usage spike while the CPU remains idle
 7. Cybersecurity Lab Task - Create a "Brute Force Simulator" where the script must solve 100 CAPTCHAs in under 5 seconds to "bypass" a mock login portal
