@@ -1,11 +1,11 @@
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
 from captcha.image import ImageCaptcha
 import numpy as np
-import os
-import time
+
 
 # --- 1. CONFIGURATION ---
 CHARS = "0123456789" 
@@ -122,7 +122,7 @@ with torch.no_grad():
 
 # --- 8. FINAL SUMMARY & SAVE ---
 print("-" * 40)
-print(f"TRAINING SESSION SUMMARY")
+print("TRAINING SESSION SUMMARY")
 print(f"Hardware Threads Used: {SYSTEM_THREADS}")
 print(f"Total Training Time:   {total_train_time:.2f} seconds")
 print(f"Final Accuracy Score:  {(correct/total)*100:.2f}%")
