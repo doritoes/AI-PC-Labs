@@ -28,7 +28,7 @@ Materials:
 1. Environment setup - Install Intell OpenVINO Toolkit and PyTorch
     - [Python](1_Python.md)
     - [OpenVINO](2_OpenVINO.md)
-    - PyTorch
+    - [PyTorch](3_PyTorch.md)
 3. Dataset Preparation - Use a Python script to generate 10,000 "noisy" text images (CAPTCHAs) or use a pre-labeled dataset like the CAPTCHA Images set on Kaggle
 4. Model Architecture - Build a simple CNN (3-4 layers) designed for character recogniztion
 5. Training - Run training on the 20-core CPU. This teaches students that "training" is computationally heavy and usually happens on the CPU or GPU before the NPU is ever involved.
