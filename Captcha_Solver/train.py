@@ -10,7 +10,7 @@ import os
 CHARS = "0123456789" 
 CAPTCHA_LENGTH = 4
 WIDTH, HEIGHT = 160, 60
-DATASET_SIZE = 5000 
+DATASET_SIZE = 10000 
 BATCH_SIZE = 32
 TRAIN_SPLIT = 0.8 # 80% train, 20% held back
 
@@ -78,7 +78,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 print("\nStarting training on CPU (20 threads)...")
 model.train()
-for epoch in range(5):
+for epoch in range(10):
     running_loss = 0.0
     for images, labels in train_loader:
         optimizer.zero_grad()
