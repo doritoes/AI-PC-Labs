@@ -8,15 +8,19 @@ import os
 import time
 
 # --- 1. CONFIGURATION ---
-CHARS = "0123456789"
+CHARS = "0123456789" 
 CAPTCHA_LENGTH = 4
 WIDTH, HEIGHT = 160, 60
-DATASET_SIZE = 10000  # Increased for better accuracy
+DATASET_SIZE = 10000 
 BATCH_SIZE = 32
-TRAIN_SPLIT = 0.8
-EPOCHS = 10
+TRAIN_SPLIT = 0.8 
+EPOCHS = 10  # Now using a global constant
 
-# --- 2. DATASET GENERATOR ---
+# --- 2. HARDWARE DETECTION ---
+# Dynamically get the number of logical threads
+SYSTEM_THREADS = os.cpu_count() or 1 
+
+# --- 3. DATASET GENERATOR ---
 class CaptchaDataset(Dataset):
     def __init__(self, size):
         self.size = size
@@ -37,19 +41,23 @@ class CaptchaDataset(Dataset):
         
         return img, label.flatten()
 
-# --- 3. PREPARE DATA ---
+# --- 4. PREPARE DATA ---
+print(f"System detected: {SYSTEM_THREADS} logical threads.")
 print(f"Generating dataset of {DATASET_SIZE} images in memory...")
+
 full_dataset = CaptchaDataset(DATASET_SIZE)
 train_size = int(TRAIN_SPLIT * DATASET_SIZE)
 test_size = DATASET_SIZE - train_size
 
 train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size])
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+
+# We use num_workers to tell PyTorch to use the system threads for data loading
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
 test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
 
 print(f"Ready: {train_size} training images, {test_size} held-back test images.")
 
-# --- 4. THE MODEL ARCHITECTURE ---
+# --- 5. THE MODEL ARCHITECTURE ---
 class SimpleCNN(nn.Module):
     def __init__(self):
         super(SimpleCNN, self).__init__()
@@ -69,13 +77,12 @@ class SimpleCNN(nn.Module):
         x = torch.relu(self.fc(x))
         return self.output(x)
 
-# --- 5. TRAINING LOOP ---
+# --- 6. TRAINING LOOP ---
 model = SimpleCNN()
 criterion = nn.MultiLabelSoftMarginLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-print("\nStarting training on CPU (20 threads)...")
-# Start timing here
+print(f"\nStarting training on CPU using {SYSTEM_THREADS} threads...")
 start_time = time.perf_counter()
 
 model.train()
@@ -91,11 +98,10 @@ for epoch in range(EPOCHS):
     
     print(f"Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss/len(train_loader):.4f}")
 
-# End timing here
 end_time = time.perf_counter()
 total_train_time = end_time - start_time
 
-# --- 6. VALIDATION ---
+# --- 7. VALIDATION ---
 print("\nTesting model against held-back images...")
 model.eval()
 correct = 0
@@ -114,17 +120,17 @@ with torch.no_grad():
         correct += correct_indices.sum().item()
         total += labels.size(0)
 
-# --- 7. FINAL SUMMARY & SAVE ---
-print("-" * 30)
-print(f"TRAINING COMPLETE")
-print(f"Total Training Time: {total_train_time:.2f} seconds")
-print(f"Final Accuracy: {(correct/total)*100:.2f}%")
-print("-" * 30)
+# --- 8. FINAL SUMMARY & SAVE ---
+print("-" * 40)
+print(f"TRAINING SESSION SUMMARY")
+print(f"Hardware Threads Used: {SYSTEM_THREADS}")
+print(f"Total Training Time:   {total_train_time:.2f} seconds")
+print(f"Final Accuracy Score:  {(correct/total)*100:.2f}%")
+print("-" * 40)
 
 save_path = "captcha_model.pth"
 try:
     torch.save(model.state_dict(), save_path)
     print(f"SUCCESS: Model saved as {save_path}")
-    print("You are now ready for Day 2: NPU Optimization.")
 except Exception as e:
     print(f"ERROR: Could not save model: {e}")
