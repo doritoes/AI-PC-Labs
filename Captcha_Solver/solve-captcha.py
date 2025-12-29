@@ -1,6 +1,7 @@
+import sys
+import time
 import openvino as ov
 import numpy as np
-import time
 from captcha.image import ImageCaptcha
 
 # --- 1. SETUP ---
@@ -17,7 +18,7 @@ try:
     print("NPU Engine Ready.")
 except Exception as e:
     print(f"Error loading model: {e}")
-    exit()
+    sys.exit()
 
 # --- 3. VALIDATION LOOP ---
 print(f"Running NPU Validation on {TEST_SAMPLES} new CAPTCHAs...")
