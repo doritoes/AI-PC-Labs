@@ -18,7 +18,6 @@ class CaptchaModel(nn.Module):
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.MaxPool2d(2)
         )
-        # Final CNN feature map size is 12x5 for a 200x80 input
         self.fc = nn.Linear(256 * 12 * 5, 1024)
         self.output = nn.Linear(1024, CAPTCHA_LENGTH * len(CHARS))
 
@@ -42,17 +41,24 @@ class CaptchaDataset(Dataset):
         label = torch.tensor([CHARS.find(c) for c in label_str], dtype=torch.long)
         return image, label
 
-# --- 2. Data Generation ---
-def generate_fresh_data(output_dir):
+# --- 2. Smart Data Generation ---
+def prepare_dataset(output_dir):
+    # Check if dataset already exists and is complete
     if os.path.exists(output_dir):
-        print(f"🧹 Clearing old data...")
+        existing_count = len(glob.glob(os.path.join(output_dir, "*.png")))
+        if existing_count >= (DATASET_SIZE * 3):
+            print(f"📊 Dataset already exists ({existing_count} images). Skipping generation.")
+            return
+
+    if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir)
     
     from captcha.image import ImageCaptcha
     generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
+    print(f"🎨 Generating {DATASET_SIZE*3} fresh images...")
     
-    print(f"🎨 Generating {DATASET_SIZE*3} fresh images (Base + Blur + Rotate)...")
+    start_gen = time.time()
     for i in range(DATASET_SIZE):
         label = "".join(random.choices(CHARS, k=CAPTCHA_LENGTH))
         base_path = os.path.join(output_dir, f"{label}_{i}.png")
@@ -62,14 +68,15 @@ def generate_fresh_data(output_dir):
         img_pil.rotate(random.uniform(-15, 15), fillcolor="white").save(base_path.replace(".png", "_rot.png"))
         if i % 10000 == 0 and i > 0:
             print(f"  > Generated {i*3} images...")
+    print(f"✅ Generation complete in {time.time() - start_gen:.2f}s")
 
-# --- 3. Training & Accuracy Logic ---
+# --- 3. Training Function ---
 def train():
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     dataset_path = os.path.join(root_dir, "dataset")
     log_path = os.path.join(root_dir, "results_log.txt")
     
-    generate_fresh_data(dataset_path)
+    prepare_dataset(dataset_path)
 
     print(f"🚀 Initializing Arrow Lake XPU: {DEVICE}")
     model = CaptchaModel().to(DEVICE)
@@ -85,55 +92,58 @@ def train():
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE)
 
     best_acc = 0.0
-    try:
-        start_time = time.time()
-        for epoch in range(15):
-            model.train()
-            epoch_loss = 0
-            for imgs, lbls in train_loader:
+    start_total_time = time.time()
+
+    for epoch in range(15):
+        epoch_start = time.time()
+        model.train()
+        epoch_loss = 0
+        
+        for imgs, lbls in train_loader:
+            imgs, lbls = imgs.to(DEVICE), lbls.to(DEVICE)
+            optimizer.zero_grad()
+            with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
+                outputs = model(imgs)
+                loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            epoch_loss += loss.item()
+
+        # Validation: Strict Accuracy
+        model.eval()
+        correct = 0
+        with torch.no_grad():
+            for imgs, lbls in val_loader:
                 imgs, lbls = imgs.to(DEVICE), lbls.to(DEVICE)
-                optimizer.zero_grad()
                 with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
                     outputs = model(imgs)
-                    loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
-                scaler.scale(loss).backward()
-                scaler.step(optimizer)
-                scaler.update()
-                epoch_loss += loss.item()
+                    preds = torch.argmax(outputs, dim=2)
+                    correct += (preds == lbls).all(dim=1).sum().item()
+        
+        val_acc = (correct / len(val_ds)) * 100
+        avg_loss = epoch_loss / len(train_loader)
+        epoch_duration = time.time() - epoch_start
+        
+        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {epoch_duration:.2f}s")
 
-            # --- Validation: Strict Accuracy ---
-            model.eval()
-            correct = 0
-            with torch.no_grad():
-                for imgs, lbls in val_loader:
-                    imgs, lbls = imgs.to(DEVICE), lbls.to(DEVICE)
-                    with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
-                        outputs = model(imgs)
-                        preds = torch.argmax(outputs, dim=2)
-                        # All 6 chars must match exactly
-                        correct += (preds == lbls).all(dim=1).sum().item()
-            
-            val_acc = (correct / len(val_ds)) * 100
-            avg_loss = epoch_loss / len(train_loader)
-            print(f"✅ Epoch {epoch+1} | Loss: {avg_loss:.4f} | Perfect Match Acc: {val_acc:.2f}%")
+        if val_acc > best_acc:
+            best_acc = val_acc
+            torch.save(model.state_dict(), os.path.join(root_dir, "captcha_model.pth"))
 
-            if val_acc > best_acc:
-                best_acc = val_acc
-                torch.save(model.state_dict(), os.path.join(root_dir, "captcha_model.pth"))
-                print(f" ⭐ New Best Model Saved ({val_acc:.2f}%)")
+    # Only clean up if we reach the end successfully
+    total_duration = (time.time() - start_total_time) / 60
+    print(f"\n🏁 Training Finished in {total_duration:.2f} minutes.")
+    
+    with open(log_path, "a") as f:
+        f.write(f"\nRun: {datetime.datetime.now()} | Device: {DEVICE}\n")
+        f.write(f"Best Acc: {best_acc:.2f}% | Total Time: {total_duration:.2f}m\n")
+        f.write("-" * 50 + "\n")
 
-        total_time = (time.time() - start_time) / 60
-        with open(log_path, "a") as f:
-            f.write(f"\n--- Lab Run: {datetime.datetime.now()} ---\n")
-            f.write(f"Total Data: {DATASET_SIZE*3} | Time: {total_time:.2f} min\n")
-            f.write(f"Final Loss: {avg_loss:.4f} | Best Accuracy: {best_acc:.2f}%\n")
-            f.write("-" * 40 + "\n")
-
-    finally:
-        print(f"🧹 Cleanup: Removing {dataset_path}...")
-        if os.path.exists(dataset_path):
-            shutil.rmtree(dataset_path)
-        print("✨ Lab complete.")
+    print(f"🧹 Success Cleanup: Removing {dataset_path}...")
+    if os.path.exists(dataset_path):
+        shutil.rmtree(dataset_path)
+    print("✨ Lab complete.")
 
 if __name__ == "__main__":
     train()
