@@ -4,81 +4,37 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 from PIL import Image, ImageFilter
-import os
-import random
-import glob
-import time
+import os, random, glob, time, gc
 
-# Direct import from the same folder
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DEVICE, DATASET_SIZE
 
-# --- 1. Integrated Data Generation & Augmentation ---
-def generate_lab_data():
-    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    output_dir = os.path.join(root_dir, "dataset")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-    
-    existing_files = glob.glob(os.path.join(output_dir, "*.png"))
-    if len(existing_files) >= (DATASET_SIZE * 3):
-        print(f"📊 Dataset already exists ({len(existing_files)} images). Skipping generation.")
-        return output_dir
-
-    from captcha.image import ImageCaptcha
-    generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
-    
-    print(f"🎨 Lab Mode: Generating {DATASET_SIZE} base images + 2 Augmentations each...")
-    start_time = time.time()
-    
-    for i in range(DATASET_SIZE):
-        label = "".join(random.choices(CHARS, k=CAPTCHA_LENGTH))
-        base_path = os.path.join(output_dir, f"{label}_{i}.png")
-        
-        img_pil = generator.generate_image(label)
-        img_pil.save(base_path)
-        
-        # Blur Augmentation
-        img_pil.filter(ImageFilter.BLUR).save(base_path.replace(".png", "_blur.png"))
-        
-        # Rotate Augmentation
-        angle = random.uniform(-15, 15)
-        img_pil.rotate(angle, resample=Image.BICUBIC, fillcolor="white").save(base_path.replace(".png", "_rot.png"))
-        
-        if i % 1000 == 0 and i > 0:
-            print(f"  > Processed {i} base labels ({i*3} images total)...")
-
-    print(f"✅ Generation complete in {time.time() - start_time:.2f}s")
-    return output_dir
-
-# --- 2. Model Architecture ---
 class CaptchaModel(nn.Module):
     def __init__(self):
         super(CaptchaModel, self).__init__()
+        # Deeper CNN for better feature extraction
         self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2, 2),
-            nn.Conv2d(32, 64, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 128, kernel_size=3, padding=1), nn.ReLU(), nn.MaxPool2d(2, 2)
+            nn.Conv2d(1, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.MaxPool2d(2)
         )
-        self.fc = nn.Sequential(
-            nn.Linear(128 * 25 * 10, 512),
-            nn.ReLU(),
-            nn.Dropout(0.3)
-        )
-        self.heads = nn.ModuleList([nn.Linear(512, len(CHARS)) for _ in range(CAPTCHA_LENGTH)])
+        # 200/16 = 12.5, 80/16 = 5 -> 256 * 12 * 5 = 15360
+        self.fc = nn.Linear(256 * 12 * 5, 1024)
+        self.output = nn.Linear(1024, CAPTCHA_LENGTH * len(CHARS))
 
     def forward(self, x):
-        x = self.conv(x).view(x.size(0), -1)
-        x = self.fc(x)
-        return [head(x) for head in self.heads]
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)
+        x = torch.relu(self.fc(x))
+        x = self.output(x)
+        return x.view(-1, CAPTCHA_LENGTH, len(CHARS))
 
-# --- 3. Dataset Handler ---
 class CaptchaDataset(Dataset):
     def __init__(self, img_dir):
         self.img_paths = glob.glob(os.path.join(img_dir, "*.png"))
         self.transform = transforms.Compose([
-            transforms.Grayscale(),
-            transforms.Resize((HEIGHT, WIDTH)),
-            transforms.ToTensor()
+            transforms.Grayscale(), transforms.Resize((HEIGHT, WIDTH)),
+            transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,)) # Normalize helps convergence
         ])
     def __len__(self): return len(self.img_paths)
     def __getitem__(self, idx):
@@ -88,46 +44,53 @@ class CaptchaDataset(Dataset):
         label = torch.tensor([CHARS.find(c) for c in label_str], dtype=torch.long)
         return image, label
 
-# --- 4. Main Training Function ---
 def train():
-    dataset_path = generate_lab_data()
+    # --- Check for dataset folder ---
+    root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    dataset_path = os.path.join(root_dir, "dataset")
+    
+    if not os.path.exists(dataset_path) or len(os.listdir(dataset_path)) < 1000:
+        print("❌ Dataset not found or incomplete. Please check generation logic.")
+        return
 
-    print(f"🚀 Initializing Arrow Lake XPU: {DEVICE}")
     model = CaptchaModel().to(DEVICE)
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    # Lower LR to 0.0005 for stability on Intel XPU
+    optimizer = optim.Adam(model.parameters(), lr=0.0005)
     criterion = nn.CrossEntropyLoss()
     scaler = torch.amp.GradScaler(device=DEVICE)
 
     full_ds = CaptchaDataset(dataset_path)
-    train_size = int(0.8 * len(full_ds))
-    val_size = len(full_ds) - train_size
-    train_ds, val_ds = random_split(full_ds, [train_size, val_size])
+    train_ds, _ = random_split(full_ds, [int(0.9*len(full_ds)), len(full_ds)-int(0.9*len(full_ds))])
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
-    
-    print(f"📊 Training on {len(train_ds)} total images.")
+    print(f"🔥 Training Restarted on {DEVICE}. Memory Cleared.")
 
     for epoch in range(20):
         model.train()
-        epoch_start = time.time()
-        running_loss = 0.0
+        # CLEAR CACHE EVERY EPOCH
+        if DEVICE == "xpu":
+            torch.xpu.empty_cache()
+        gc.collect()
         
+        epoch_loss = 0
         for i, (imgs, lbls) in enumerate(train_loader):
             imgs, lbls = imgs.to(DEVICE), lbls.to(DEVICE)
             optimizer.zero_grad()
             
             with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
-                outputs = model(imgs)
-                loss = sum(criterion(outputs[j], lbls[:, j]) for j in range(CAPTCHA_LENGTH))
+                outputs = model(imgs) # (B, 6, 62)
+                loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
             
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
-            
-            running_loss += loss.item()
-            if i % 50 == 0:
-                print(f"  [Epoch {epoch+1}] Batch {i}/{len(train_loader)} | Loss: {loss.item():.4f}")
+            epoch_loss += loss.item()
 
-        print(f"✅ Epoch {epoch+1} Done | Avg Loss: {running_loss/len(train_loader):.4f} | Time: {time.time()-epoch_start:.1f}s")
+            if i % 100 == 0:
+                print(f"E{epoch+1} B{i} | Loss: {loss.item():.4f}")
 
-        # Final Save Logic
+        print(f"✅ Epoch {epoch+1} Avg Loss: {epoch_loss/len(train_loader):.4f}")
+        torch.save(model.state_dict(), "../captcha_model.pth")
+
+if __name__ == "__main__":
+    train()
