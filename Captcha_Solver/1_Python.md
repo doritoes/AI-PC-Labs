@@ -1,11 +1,19 @@
 # Set Up Python for our AI Lab
 
 ## Download the installer
+If you aren't going to do the [Advanced Lab](advanced/README.md), you can install Python 3.14.2 - Dec. 5, 2025. But as of current testing, it doesn't work with our GPU acceleration.
+
 Download Python installer from Python.org Windows Downloads page
 - https://www.python.org/downloads/windows/
 - This Lab uses: Python 3.14.2 - Dec. 5, 2025
 - Download Windows installer (64-bit) https://www.python.org/ftp/python/3.14.2/python-3.14.2-amd64.exe
 - "Look for Python 3.11.9 (this is currently the "sweet spot" for stability with AI libraries like OpenVINO)"
+
+For the Advanced Lab and GPU support:
+- https://www.python.org/downloads/windows/
+- Use: Python 3.12.10 - Dec. 5, 2025
+- Download Windows installer (64-bit) https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+
 
 ## Installation
 1. Run the downloaded file, similar to `python-3.14.2-amd64.exe`
@@ -23,7 +31,7 @@ Download Python installer from Python.org Windows Downloads page
     - At the very end of the installation, you will see a successful setup message
     - STOP and look for the option: "Disable path length limit"
     - Click **Disable path length limit** (AI libraries often have deep folder structures that exceed the standard Windows 260-character limit)
-    - Click **CLose**
+    - Click **Close**
 
 ## Verify
 Open a new PowerShell windows (not as Admin this time, just a regular user) and type:
