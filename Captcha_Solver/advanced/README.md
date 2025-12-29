@@ -4,10 +4,12 @@ Moving into an Advanced tier is a significant jump. We are shifting from a simpl
 To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip using intel_extension_for_pytorch (IPEX)
 - much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
 - includes early stopping (monitors validation loss and stops if it plateaus for 3 epochs) and XPU Optimization
-- uses 50,000 images + 50,000 slightly modified images for training (1:1 augmentation)
+- uses 20,000 images + 40,000 slightly modified images for training (1:2 augmentation)
 - use CPU to generate training data images, and allow iGPU to train the model simultaneously
 - increasing game to solve 100 in 10 seconds
-- uses 5-8GB of disk for generating training data
+- tuned dataset size and batch size
+    - save VRAM for the 16GB RAM (shared GPU/CPU/system)
+    - adjust workload to fit within 35W power envelope
 
 WARNING you are entering dependency hell. The following was tested on this specific environment.
 
@@ -39,7 +41,7 @@ NOTE Once the model is at 90% accuracy you can increase the complexity of the au
     - [game.py](game.py)
 11. Train
      - `python train.py`
-     - Let it cook! The iGPU is a beast. In testing, we saw ~12 minutes for the first 2 epochs for 150k images, 208s image per second.
+     - Let it cook! The iGPU is a beast.
      - Phases
          - Foundation (Epochs 1-5) Loss drops steadily. Accuracy stays at 0% or very low (<1%)
          - Breakthough (Epochs 6-15) Accuracy begins to "pop" (e.g., 5% > 20% > 50%)
