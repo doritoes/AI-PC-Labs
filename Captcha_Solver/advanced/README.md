@@ -1,7 +1,7 @@
 # Advanced CAPTCHA
 Moving into an Advanced tier is a significant jump. We are shifting from a simple 10-digit classifier to a 62-character alphanumeric model ($a-z, A-Z, 0-9$). We are moving to a 6-character string instead of 4. This increases the complexity of the output layer from 40 neurons to 372 neurons (62 x 6 characters).
 
-To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip using intel_extension_for_pytorch (IPEX)
+To handle this, we will leverage the Intel GPU (iGPU) on your Arrow Lake chip using intel_extension_for_pytorch (IPEX)
 - much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
 - includes early stopping (monitors validation loss and stops if it plateaus for 3 epochs) and XPU Optimization
 - uses 20,000 images + 40,000 slightly modified images for training (1:2 augmentation)
