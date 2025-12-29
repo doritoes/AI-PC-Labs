@@ -11,6 +11,8 @@ To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip usi
 
 WARNING you are entering dependency hell. The following was tested on this specific environment.
 
+NOTE Once the model is at 90% accuracy you can increase the complexity of the augmentations like adding noise or lines
+
 1. If you haven't already, install Python 3.12
     - https://www.python.org/downloads/windows/
     - Use: Python 3.12.10
@@ -23,7 +25,7 @@ WARNING you are entering dependency hell. The following was tested on this speci
     - `.\nputest_advanced_env\Scripts\activate`
     - `python --version`
 5. `python -m pip install --upgrade pip setuptools wheel`
-6. `pip install opencv-python pillow captcha`
+6. `pip install opencv-python pillow captcha onnx openvino==2025.4.1 numpy`
 7. `pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/xpu`
 8. Confirm the GPU is ready
     - `python -c "import torch; print('XPU Available:', torch.xpu.is_available()); print('Device Name:', torch.xpu.get_device_name(0) if torch.xpu.is_available() else 'Not Found')"`
@@ -32,7 +34,7 @@ WARNING you are entering dependency hell. The following was tested on this speci
     - [config.py](config.py)
     - [train.py](train.py)
     - [convert.py](convert.py)
-    - quantize.py
+    - [quantize.py](quantize.py)
     - solve-captcha.py
     - [game.py](game.py)
 11. Train
