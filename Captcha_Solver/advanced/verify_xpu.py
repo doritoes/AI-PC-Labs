@@ -1,19 +1,22 @@
 import os
 import sys
-import ctypes
 
-# 1. Define the paths where the Intel DLLs live
+# 1. Define base paths
 venv_path = sys.prefix
 torch_lib = os.path.join(venv_path, "Lib", "site-packages", "torch", "lib")
+# NEW: Specifically add the IPEX bin directory which contains the XPU kernels
 ipex_bin = os.path.join(venv_path, "Lib", "site-packages", "intel_extension_for_pytorch", "bin")
 
-# 2. Tell Windows to allow loading from these folders
+# 2. Add directories to DLL search path (CRITICAL FOR WINDOWS)
 if os.path.exists(torch_lib):
     os.add_dll_directory(torch_lib)
+    print(f"[*] Added to DLL path: {torch_lib}")
+
 if os.path.exists(ipex_bin):
     os.add_dll_directory(ipex_bin)
+    print(f"[*] Added to DLL path: {ipex_bin}")
 
-# 3. Now try the import
+# 3. Import and Test
 try:
     import torch
     import intel_extension_for_pytorch as ipex
