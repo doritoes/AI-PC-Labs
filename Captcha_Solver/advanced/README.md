@@ -35,7 +35,7 @@ NOTE Once the model is at 90% accuracy you can increase the complexity of the au
     - [train.py](train.py)
     - [convert.py](convert.py)
     - [quantize.py](quantize.py)
-    - solve-captcha.py
+    - [solve-captcha.py](solve-captcha.py)
     - [game.py](game.py)
 11. Train
      - `python train.py`
