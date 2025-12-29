@@ -1,4 +1,4 @@
-# Advanced CAPTHA
+# Advanced CAPTCHA
 Moving into an Advanced tier is a significant jump. We are shifting from a simple 10-digit classifier to a 62-character alphanumeric model ($a-z, A-Z, 0-9$). We are moving to a 6-character string instead of 4. This increases the complexity of the output layer from 40 neurons to 372 neurons (62 x 6 characters).
 
 To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip using intel_extension_for_pytorch (IPEX)
@@ -7,8 +7,16 @@ To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip usi
 - uses 50,000 images + 50,000 slightly modified images for training
 - increasing game to solve 100 in 10 seconds
 
+1. If you haven't already, install Python 3.12
+2. Exit the Python 3.14 environment if active
+3. Create new environment for Python 3.12
+4. Activate the new environment
+
+
 1. Install Intel Extension for PyTorch
+    - `python -m pip install --upgrade pip`
     - `pip install intel-extension-for-pytorch`
+    - `python -m pip install torch==2.5.1+cxx11.abi torchvision==0.20.1+cxx11.abi torchaudio==2.5.1+cxx11.abi intel-extension-for-pytorch==2.5.10+xpu --extra-index-url https://pytorch-extension.intel.com/release-whl/stable/xpu/us/`
 2. Create a folder named `advanced`
 3. In the folder create
     - [config.py](config.py)
