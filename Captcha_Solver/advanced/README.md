@@ -22,7 +22,7 @@ WARNING you are entering dependency hell. The following was tested on this speci
     - `.\nputest_advanced_env\Scripts\activate`
     - `python --version`
 5. `python -m pip install --upgrade pip setuptools wheel`
-6. `pip install opencv-python pillow`
+6. `pip install opencv-python pillow captcha`
 7. `pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/xpu`
 8. Confirm the GPU is ready
     - `python -c "import torch; print('XPU Available:', torch.xpu.is_available()); print('Device Name:', torch.xpu.get_device_name(0) if torch.xpu.is_available() else 'Not Found')"`
