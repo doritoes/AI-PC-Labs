@@ -1,38 +1,46 @@
-# fix_intel_gpu.ps1
-# This script fixes the WinError 126 for Intel XPU by consolidating DLLs
+# Advanced Lab: Intel XPU Runtime Dependency Automator
+$VENV_BASE = "$env:USERPROFILE\Captcha-AI\nputest_advanced_env"
+$TORCH_LIB = "$VENV_BASE\Lib\site-packages\torch\lib"
+$INTEL_BIN = "$VENV_BASE\Library\bin"
+$TEMP_ZIP  = "$env:TEMP\libuv_dist.zip"
+$UV_URL    = "https://dist.libuv.org/dist/v1.48.0/libuv-v1.48.0-x64.zip"
 
-$VENV_NAME = "nputest_advanced_env"
-$BASE_PATH = "$env:USERPROFILE\Captcha-AI\$VENV_NAME"
+Write-Host "--- [NPU/XPU Advanced Lab: Dependency Bridge] ---" -ForegroundColor Cyan
 
-Write-Host "--- Starting Intel XPU DLL Repair ---" -ForegroundColor Cyan
-
-if (-not (Test-Path $BASE_PATH)) {
-    Write-Error "Virtual environment not found at $BASE_PATH. Please check your folder name."
-    exit
+# 1. Automated Retrieval of libuv.dll
+if (-not (Test-Path "$TORCH_LIB\libuv.dll")) {
+    Write-Host "[!] libuv.dll missing. Fetching from official mirror..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri $UV_URL -OutFile $TEMP_ZIP
+    
+    # Extract only the DLL using CLI (no GUI interaction)
+    Expand-Archive -Path $TEMP_ZIP -DestinationPath "$env:TEMP\libuv_temp" -Force
+    $extractedDll = Get-ChildItem -Path "$env:TEMP\libuv_temp" -Filter "libuv.dll" -Recurse | Select-Object -First 1
+    
+    if ($extractedDll) {
+        Copy-Item $extractedDll.FullName -Destination $TORCH_LIB -Force
+        Write-Host "[+] libuv.dll successfully injected into torch core." -ForegroundColor Green
+    }
+    Remove-Item $TEMP_ZIP; Remove-Item "$env:TEMP\libuv_temp" -Recurse -ErrorAction SilentlyContinue
 }
 
-# 1. Define the Source and Destination folders
-$sourceDir = "$BASE_PATH\Library\bin"
-$destDir   = "$BASE_PATH\Lib\site-packages\torch\lib"
+# 2. Intel OneAPI Runtime Consolidation
+if (Test-Path $INTEL_BIN) {
+    Write-Host "[*] Consolidating Intel 2025.0 Runtime libraries..." -ForegroundColor Gray
+    $dependencies = @("sycl8.dll", "mkl_rt.2.dll", "libiomp5md.dll")
+    
+    foreach ($dll in $dependencies) {
+        if (Test-Path "$INTEL_BIN\$dll") {
+            Copy-Item "$INTEL_BIN\$dll" -Destination $TORCH_LIB -Force
+            Write-Host "[+] Linked: $dll" -ForegroundColor Green
+        }
+    }
 
-# 2. List of critical Arrow Lake / XPU DLLs
-$dllsToCopy = @(
-    "sycl8.dll",
-    "mkl_rt.2.dll",
-    "libiomp5md.dll",
-    "pi_win_proxy_loader.dll"
-)
-
-# 3. Perform the copy
-foreach ($dll in $dllsToCopy) {
-    $srcFile = Join-Path $sourceDir $dll
-    if (Test-Path $srcFile) {
-        Write-Host "Found $dll, copying to torch/lib..." -ForegroundColor Green
-        Copy-Item -Path $srcFile -Destination $destDir -Force
-    } else {
-        Write-Host "Warning: $dll not found in $sourceDir" -ForegroundColor Yellow
+    # 3. Arrow Lake Hardware Alias (Bugfix for IPEX 2.5)
+    # IPEX 2.5 expects sycl7.dll, but Arrow Lake (v2025) provides sycl8.dll.
+    if (Test-Path "$INTEL_BIN\sycl8.dll") {
+        Copy-Item "$INTEL_BIN\sycl8.dll" -Destination "$TORCH_LIB\sycl7.dll" -Force
+        Write-Host "[+] Created sycl7 hardware-abstraction alias." -ForegroundColor Cyan
     }
 }
 
-Write-Host "--- Repair Complete ---" -ForegroundColor Cyan
-Write-Host "Now run: python advanced/verify_xpu.py" -ForegroundColor White
+Write-Host "--- [Process Complete] ---" -ForegroundColor Cyan
