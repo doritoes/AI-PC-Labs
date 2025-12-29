@@ -39,6 +39,11 @@ NOTE Once the model is at 90% accuracy you can increase the complexity of the au
     - [game.py](game.py)
 11. Train
      - `python train.py`
+     - Let it cook! The iGPU is a beast. In testing, we saw ~12 minutes for the first 2 epochs for 150k images, 208s image per second.
+     - Phases
+         - Foundation (Epochs 1-5) Loss drops steadily. Accuracy stays at 0% or very low (<1%)
+         - Breakthough (Epochs 6-15) Accuracy begins to "pop" (e.g., 5% > 20% > 50%)
+         - Refinement (Epochs 16-30) Loss flattens. Accuracy climbs toward 90%+
 12. Convert and Quantize
      - `python convert.py`
      - `python quantize.py`
