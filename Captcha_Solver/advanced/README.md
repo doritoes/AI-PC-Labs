@@ -8,9 +8,12 @@ To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip usi
 - increasing game to solve 100 in 10 seconds
 
 1. If you haven't already, install Python 3.12
-2. Exit the Python 3.14 environment if active
-3. Create new environment for Python 3.12
-4. Activate the new environment
+    - https://www.python.org/downloads/windows/
+    - Use: Python 3.12.10
+    - Download Windows installer (64-bit) https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
+3. Exit the Python 3.14 environment if active
+4. Create new environment for Python 3.12
+5. Activate the new environment
 
 
 1. Install Intel Extension for PyTorch
