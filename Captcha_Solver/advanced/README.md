@@ -7,6 +7,7 @@ To handle this, we will leveage the Intel GPU (iGPU) on your Arrow Lake chip usi
 - uses 50,000 images + 50,000 slightly modified images for training (1:1 augmentation)
 - use CPU to generate training data images, and allow iGPU to train the model simultaneously
 - increasing game to solve 100 in 10 seconds
+- uses 5-8GB of disk for generating training data
 
 WARNING you are entering dependency hell. The following was tested on this specific environment.
 
