@@ -14,13 +14,16 @@ else:
     print("Error: captcha_model.pth not found! Run train.py first.")
     sys.exit()
 
-# 2. Convert to OpenVINO IR Format
-print("Converting PyTorch model to OpenVINO IR... (This is fast)")
-# Input shape: [Batch, Channel, Height, Width]
-example_input = torch.randn(1, 1, 60, 160)
-ov_model = ov.convert_model(model, example_input=example_input)
+# 2. ADD THIS: Define the exact shape [Batch, Channels, Height, Width]
+input_shape = [1, 1, 60, 160]
 
-# 3. Save the model files
+# 3. Convert to OpenVINO IR Format
+print("Converting PyTorch model to OpenVINO IRi with fixed input shape for NPU compatibility...")
+ov_model = ov.convert_model(model, example_input=torch.randn(1, 1, 60, 160))
+# Set the shape explicitly in the model metadata
+ov_model.reshape({0: input_shape})
+
+# 4. Save the model files
 ov.save_model(ov_model, "captcha_model.xml")
 print("-" * 40)
 print("SUCCESS: Model converted to OpenVINO IR!")
