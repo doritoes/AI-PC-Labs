@@ -1,15 +1,15 @@
+import os
+import sys
+import time
 import openvino as ov
 import numpy as np
-import time
-import sys
-import os
 from captcha.image import ImageCaptcha
 
 # --- 1. INITIALIZATION ---
 core = ov.Core()
 CHARS = "0123456789"
 TARGET_ATTEMPTS = 100 # We want to survive 100 attempts
-MAX_STRIKES = 5  
+MAX_STRIKES = 5
 LEADERBOARD_FILE = "leaderboard.txt"
 generator = ImageCaptcha(width=160, height=60)
 
@@ -27,7 +27,8 @@ def update_leaderboard(player_time):
     scores.append(player_time)
     scores.sort()
     with open(LEADERBOARD_FILE, "w") as f:
-        for s in scores[:10]: f.write(f"{s:.4f}\n")
+        for s in scores[:10]:
+            f.write(f"{s:.4f}\n")
     return scores.index(player_time) + 1, scores[0]
 
 # --- 2. GAME LOOP ---
@@ -44,7 +45,7 @@ start_time = time.perf_counter()
 for i in range(1, TARGET_ATTEMPTS + 1):
     secret = "".join([np.random.choice(list(CHARS)) for _ in range(4)])
     img = generator.generate_image(secret)
-    
+
     img_np = np.array(img.convert('L')) / 255.0
     input_tensor = np.expand_dims(np.expand_dims(img_np, 0), 0).astype(np.float32)
 
@@ -60,7 +61,7 @@ for i in range(1, TARGET_ATTEMPTS + 1):
     else:
         strikes += 1
         print(f"\n[ STRIKE {strikes} ] Bypass Failed: {secret} != {pred_str}")
-        
+
     if strikes >= MAX_STRIKES:
         print("\n" + "="*40)
         print("!!! LOCKOUT: FIREWALL DETECTED PATTERN !!!")
