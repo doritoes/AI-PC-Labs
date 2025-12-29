@@ -25,7 +25,7 @@ NOTE Once the model is at 90% accuracy you can increase the complexity of the au
     - `.\nputest_advanced_env\Scripts\activate`
     - `python --version`
 5. `python -m pip install --upgrade pip setuptools wheel`
-6. `pip install opencv-python pillow captcha onnx openvino==2025.4.1 numpy`
+6. `pip install opencv-python pillow captcha onnx openvino==2025.4.1 numpy nncf`
 7. `pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/xpu`
 8. Confirm the GPU is ready
     - `python -c "import torch; print('XPU Available:', torch.xpu.is_available()); print('Device Name:', torch.xpu.get_device_name(0) if torch.xpu.is_available() else 'Not Found')"`
