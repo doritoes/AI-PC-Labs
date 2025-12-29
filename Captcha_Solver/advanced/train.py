@@ -1,5 +1,4 @@
 import torch
-import intel_extension_for_pytorch as ipex 
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
@@ -7,50 +6,21 @@ from torchvision import transforms
 from PIL import Image
 import os, random, glob, time, gc, string
 
-# Assuming these are in your config.py
+# Import from your config.py
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DEVICE, DATASET_SIZE
 
-class CaptchaModel(nn.Module):
-    def __init__(self):
-        super(CaptchaModel, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
-            nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.MaxPool2d(2)
-        )
-        self.fc = nn.Linear(256 * 5 * 12, 1024)
-        self.output = nn.Linear(1024, CAPTCHA_LENGTH * len(CHARS))
-
-    def forward(self, x):
-        x = self.conv(x).view(x.size(0), -1)
-        x = torch.relu(self.fc(x))
-        return self.output(x).view(-1, CAPTCHA_LENGTH, len(CHARS))
-
-class CaptchaDataset(Dataset):
-    def __init__(self, img_dir):
-        self.img_paths = glob.glob(os.path.join(img_dir, "*.png"))
-        self.transform = transforms.Compose([
-            transforms.Grayscale(), transforms.Resize((HEIGHT, WIDTH)),
-            transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))
-        ])
-    def __len__(self): return len(self.img_paths)
-    def __getitem__(self, idx):
-        path = self.img_paths[idx]
-        image = self.transform(Image.open(path))
-        label_str = os.path.basename(path)[:CAPTCHA_LENGTH]
-        label = torch.tensor([CHARS.find(c) for c in label_str], dtype=torch.long)
-        return image, label
+# [Same CaptchaModel and CaptchaDataset classes as before...]
 
 def train():
-    device = torch.device("xpu")
+    # Use the device string directly from your config
+    device = torch.device("xpu") 
     model = CaptchaModel().to(device)
     
-    # Increased LR to help jump-start the Breakthrough phase
-    optimizer = optim.Adam(model.parameters(), lr=0.002) 
-    model, optimizer = ipex.optimize(model, optimizer=optimizer, dtype=torch.float16)
-    
+    # Standard Adam optimizer
+    optimizer = optim.Adam(model.parameters(), lr=0.001) 
     criterion = nn.CrossEntropyLoss()
+    
+    # Load dataset
     dataset_path = os.path.join(os.getcwd(), "dataset")
     full_ds = CaptchaDataset(dataset_path)
     train_size = int(0.9 * len(full_ds))
@@ -59,11 +29,10 @@ def train():
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE)
 
-    print(f"🚀 Starting Refinement Phase Training (Max 35 Epochs)")
-    
+    print(f"🚀 Starting Training on {torch.xpu.get_device_name(0)}")
     best_acc = 0.0
-    
-    for epoch in range(35): # Extended to 35 for refinement
+
+    for epoch in range(35): 
         epoch_start = time.time()
         model.train()
         total_loss = 0
@@ -71,14 +40,17 @@ def train():
         for imgs, lbls in train_loader:
             imgs, lbls = imgs.to(device), lbls.to(device)
             optimizer.zero_grad()
+            
+            # Use native XPU autocast for 16-bit precision
             with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
                 outputs = model(imgs)
                 loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
+            
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
-        # Validation
+        # Validation logic...
         model.eval()
         correct = 0
         with torch.no_grad():
@@ -90,29 +62,18 @@ def train():
         
         val_acc = (correct / len(val_ds)) * 100
         avg_loss = total_loss / len(train_loader)
-        duration = time.time() - epoch_start
         
-        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {duration:.2f}s")
+        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {time.time()-epoch_start:.2f}s")
 
-        # --- SMART STOP LOGIC ---
-        # 1. Save the best model so far
-        if val_acc > best_acc:
-            best_acc = val_acc
-            torch.save(model.state_dict(), "captcha_model_best.pth")
-        
-        # 2. Trigger Auto-Stop
+        # Smart Stop
         if val_acc >= 98.5:
-            print(f"🎯 Target Accuracy reached! Saving and exiting to protect hardware.")
-            break
-            
-        if epoch > 20 and avg_loss < 0.01:
-            print(f"📉 Loss is effectively zero. Training complete.")
+            print("🎯 Target reached. Stopping.")
             break
 
-        # Memory & Thermal management
+        # Cleanup for the 16GB RAM limit
         torch.xpu.empty_cache()
         gc.collect()
-        time.sleep(15) # Brief cool-down for the Mini PC chassis
+        time.sleep(10) 
 
     torch.save(model.state_dict(), "captcha_model_final.pth")
 
