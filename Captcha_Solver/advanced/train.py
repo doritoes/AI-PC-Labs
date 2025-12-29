@@ -9,8 +9,10 @@ import os, random, glob, time, gc, string
 # Import from your config.py
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DATASET_SIZE
 
-# --- 1. DATA GENERATION LOGIC ---
+# --- 1. DATA GENERATION LOGIC WITH RESTORED TIMERS ---
 def prepare_dataset(output_dir):
+    gen_start = time.time()
+    # Check if dataset already exists and is populated
     if os.path.exists(output_dir) and len(glob.glob(os.path.join(output_dir, "*.png"))) > 100:
         print(f"📊 Dataset already exists. Proceeding to training.")
         return
@@ -19,7 +21,6 @@ def prepare_dataset(output_dir):
     generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
     os.makedirs(output_dir, exist_ok=True)
     
-    # We generate DATASET_SIZE, then augmentations create the 60k total
     print(f"🎨 Generating {DATASET_SIZE} base images + augmentations...")
     
     for i in range(DATASET_SIZE):
@@ -34,7 +35,9 @@ def prepare_dataset(output_dir):
         
         if i % 5000 == 0 and i > 0:
             print(f"  > {i*3} images ready...")
-    print("✅ Generation complete.")
+
+    gen_duration = time.time() - gen_start
+    print(f"✅ Generation complete in {gen_duration:.2f}s")
 
 # --- 2. MODEL DEFINITION ---
 class CaptchaModel(nn.Module):
@@ -46,6 +49,7 @@ class CaptchaModel(nn.Module):
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.MaxPool2d(2)
         )
+        # Based on 80x200 input, output of conv is (256, 5, 12)
         self.fc = nn.Linear(256 * 5 * 12, 1024)
         self.output = nn.Linear(1024, CAPTCHA_LENGTH * len(CHARS))
 
@@ -107,7 +111,7 @@ def train():
             optimizer.step()
             total_loss += loss.item()
 
-        # Validation
+        # Validation phase
         model.eval()
         correct = 0
         with torch.no_grad():
@@ -119,21 +123,26 @@ def train():
         
         val_acc = (correct / len(val_ds)) * 100
         avg_loss = total_loss / len(train_loader)
-        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {time.time()-epoch_start:.2f}s")
+        epoch_duration = time.time() - epoch_start
+        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {epoch_duration:.2f}s")
 
+        # Smart Stop to save the best weights
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), "captcha_model_best.pth")
 
+        # Auto-stop trigger for the "Refinement Phase"
         if val_acc >= 98.5:
-            print("🎯 Target reached. Stopping.")
+            print("🎯 Target Accuracy reached. Stopping to save heat.")
             break
 
+        # SFF/Mini PC Maintenance
         torch.xpu.empty_cache()
         gc.collect()
-        time.sleep(10) 
+        time.sleep(10) # 10s cooldown between epochs for the EliteDesk chassis
 
     torch.save(model.state_dict(), "captcha_model_final.pth")
+    print("✨ Training complete. Model saved as captcha_model_final.pth")
 
 if __name__ == "__main__":
     train()
