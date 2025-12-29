@@ -11,7 +11,7 @@ Download Python installer from Python.org Windows Downloads page
 
 For the Advanced Lab and GPU support:
 - https://www.python.org/downloads/windows/
-- Use: Python 3.12.10 - Dec. 5, 2025
+- Use: Python 3.12.10
 - Download Windows installer (64-bit) https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe
 
 
