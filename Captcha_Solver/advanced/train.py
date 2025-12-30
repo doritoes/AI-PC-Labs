@@ -3,25 +3,26 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
-from PIL import Image, ImageFilter
-import os, random, glob, time, gc, string
+from PIL import Image
+import os, random, glob, time, gc, string, shutil
 
 # Import from your config.py
-from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DATASET_SIZE
+from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DATASET_SIZE, LEARNING_RATE
 
-# --- 1. DATA GENERATION LOGIC WITH RESTORED TIMERS ---
+# --- 1. CLEAN DATA GENERATION (0% Augmentation) ---
 def prepare_dataset(output_dir):
     gen_start = time.time()
-    # Check if dataset already exists and is populated
-    if os.path.exists(output_dir) and len(glob.glob(os.path.join(output_dir, "*.png"))) > 100:
-        print(f"📊 Dataset already exists. Proceeding to training.")
-        return
-
+    
+    # Fresh start to prevent mixing old augmented data with new unique data
+    if os.path.exists(output_dir):
+        print("🧹 Clearing old dataset for fresh 0-augmentation run...")
+        shutil.rmtree(output_dir)
+    
     from captcha.image import ImageCaptcha
     generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
     os.makedirs(output_dir, exist_ok=True)
     
-    print(f"🎨 Generating {DATASET_SIZE} base images + augmentations...")
+    print(f"🎨 Generating {DATASET_SIZE} unique captchas...")
     
     for i in range(DATASET_SIZE):
         label = "".join(random.choices(CHARS, k=CAPTCHA_LENGTH))
@@ -29,12 +30,9 @@ def prepare_dataset(output_dir):
         img_pil = generator.generate_image(label)
         img_pil.save(base_path)
         
-        # Fast Augmentations for better learning
-        img_pil.filter(ImageFilter.BLUR).save(base_path.replace(".png", "_b.png"))
-        img_pil.rotate(random.uniform(-10, 10), fillcolor="white").save(base_path.replace(".png", "_r.png"))
-        
         if i % 5000 == 0 and i > 0:
-            print(f"  > {i*3} images ready...")
+            print(f"  > {i} images ready...")
+            gc.collect() # Mid-generation memory sweep
 
     gen_duration = time.time() - gen_start
     print(f"✅ Generation complete in {gen_duration:.2f}s")
@@ -49,7 +47,6 @@ class CaptchaModel(nn.Module):
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.MaxPool2d(2)
         )
-        # Based on 80x200 input, output of conv is (256, 5, 12)
         self.fc = nn.Linear(256 * 5 * 12, 1024)
         self.output = nn.Linear(1024, CAPTCHA_LENGTH * len(CHARS))
 
@@ -83,17 +80,20 @@ def train():
 
     device = torch.device("xpu") 
     model = CaptchaModel().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=0.001) 
+    
+    # Using LEARNING_RATE from config (0.004)
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE) 
     criterion = nn.CrossEntropyLoss()
     
     full_ds = CaptchaDataset(dataset_path)
     train_size = int(0.9 * len(full_ds))
     train_ds, val_ds = random_split(full_ds, [train_size, len(full_ds)-train_size])
     
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE)
+    # Num_workers=0 is safer for 16GB RAM to avoid multiprocessing overhead
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, num_workers=0)
 
-    print(f"🚀 Training on {torch.xpu.get_device_name(0)} (Max 35 Epochs)")
+    print(f"🚀 Training on {torch.xpu.get_device_name(0)} (Batch Size: {BATCH_SIZE})")
     best_acc = 0.0
 
     for epoch in range(35):
@@ -104,14 +104,16 @@ def train():
         for imgs, lbls in train_loader:
             imgs, lbls = imgs.to(device), lbls.to(device)
             optimizer.zero_grad()
+            
             with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
                 outputs = model(imgs)
                 loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
+            
             loss.backward()
             optimizer.step()
             total_loss += loss.item()
 
-        # Validation phase
+        # Validation
         model.eval()
         correct = 0
         with torch.no_grad():
@@ -123,26 +125,26 @@ def train():
         
         val_acc = (correct / len(val_ds)) * 100
         avg_loss = total_loss / len(train_loader)
-        epoch_duration = time.time() - epoch_start
-        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {epoch_duration:.2f}s")
+        epoch_dur = time.time() - epoch_start
+        
+        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {epoch_dur:.2f}s")
 
-        # Smart Stop to save the best weights
+        # Smart Stop & Weight Saving
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), "captcha_model_best.pth")
 
-        # Auto-stop trigger for the "Refinement Phase"
         if val_acc >= 98.5:
-            print("🎯 Target Accuracy reached. Stopping to save heat.")
+            print("🎯 Target Accuracy reached. Stopping to save hardware.")
             break
 
-        # SFF/Mini PC Maintenance
+        # Aggressive Memory Cleanup
         torch.xpu.empty_cache()
         gc.collect()
-        time.sleep(10) # 10s cooldown between epochs for the EliteDesk chassis
+        time.sleep(5) # Cooldown pulse for Arrow Lake
 
     torch.save(model.state_dict(), "captcha_model_final.pth")
-    print("✨ Training complete. Model saved as captcha_model_final.pth")
+    print("✨ Training complete.")
 
 if __name__ == "__main__":
     train()
