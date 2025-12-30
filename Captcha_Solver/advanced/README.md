@@ -1,22 +1,30 @@
 # Advanced CAPTCHA
 Moving into an Advanced tier is a significant jump. We are shifting from a simple 10-digit classifier to a 62-character alphanumeric model ($a-z, A-Z, 0-9$). We are moving to a 6-character string instead of 4. This increases the complexity of the output layer from 40 neurons to 372 neurons (62 x 6 characters).
 
-To handle this, we will leverage the Intel GPU (iGPU) on your Arrow Lake chip using intel_extension_for_pytorch (IPEX)
+To handle this, we will leverage the Intel GPU (iGPU) on the Arrow Lake chip using intel_extension_for_pytorch (IPEX)
 - much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
-- includes early stopping (monitors validation loss and stops if it plateaus for 3 epochs) and XPU Optimization
+- use CPU to generate training data images, and allow iGPU to train the model
+- includes early stopping (monitors validation loss and stops early to prevent over-training)
 - uses 20,000 images + 40,000 slightly modified images for training (1:2 augmentation)
-- use CPU to generate training data images, and allow iGPU to train the model simultaneously
 - increasing game to solve 100 in 10 seconds
+
+Heavily tuned for this hardware
 - tuned dataset size and batch size
-    - save VRAM for the 16GB RAM (shared GPU/CPU/system)
-    - adjust workload to fit within 35W power envelope
+  - save VRAM for the 16GB RAM (shared GPU/CPU/system)
+  - adjust workload to fit within 35W power envelope
+- in-loop memory purge runs every 500 bathes to try and avoid memory stall
+- single bank of RAM, so tune RAM load
+- If an epoch is running long, heard-clearing GPU cache will bring it back to life
+  - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
 
-WARNING you are entering dependency hell. The following was tested on this specific environment.
+WARNING this puts an intensive load on your GPU
+- put your Mini on a wire rack and point a fan at it, or similarly keep it cool
 
-WARNING this is running on the very edge of RAM. You NEED to close out all apps when you are training. If memory utilization goes over 91%, find something to close. If the Eposh time goes too high, check memory. If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage. Sometimes you need to do a hard clear of GPU cache: `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
+WARNING you are entering dependency hell. The following was tested on this specific environment at the time of writing.
 
-NOTE Once the model is at 90% accuracy you can increase the complexity of the augmentations like adding noise or lines
+WARNING this is running on the very edge of RAM. You NEED to close out all apps when you are training. If memory utilization goes over 91%, find something to close. If the Eposh time goes too high, check memory. If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage. 
 
+## Advanced CAPTCHA Model
 1. If you haven't already, install Python 3.12
     - https://www.python.org/downloads/windows/
     - Use: Python 3.12.10
