@@ -27,7 +27,7 @@ Materials:
 
 # Overview
 ## Day 1 - Model Setup and Training
-1. Environment setup - Install Intell OpenVINO Toolkit and PyTorch
+1. Environment setup - Install Intel OpenVINO Toolkit and PyTorch
     - [Python](1_Python.md)
     - [OpenVINO](2_OpenVINO.md)
     - [PyTorch](3_PyTorch.md)
