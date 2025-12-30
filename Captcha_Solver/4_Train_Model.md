@@ -41,7 +41,7 @@ Avoiding the Traps
 - Best practices
   - Instead of stopping at an arbitrary epoch number, monitor the validation loss. If the validation loss stops decreasing for 2 or 3 epochs, stop training immediately. Any further training is just overfitting.
   - Data Augmentation over Raw Volume
-    - If you have 10000 images, you can artifically create 50,000 by slightly rotating or blurring them in memory
+    - If you have 10000 images, you can artificially create 50,000 by slightly rotating or blurring them in memory
     - More effecting than just more unique images because it teaches the model to be "robust" against tilt and blur  
   - Learning Rate Decay
     - Start with a higher learning rate to learn quickly, then "slow down" the learning rate as you reach the later epochs. This allows the model to fine-tune its weights without "overshooting" the optimal solution.
