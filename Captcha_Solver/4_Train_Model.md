@@ -39,7 +39,7 @@ Avoiding the Traps
   - model starts "memorizing" the specific noise in the training images rather than learning the actual shape of the numbers
   - like a student memorizing the answers to the practice text but doesn't understand the math
 - Best practices
-  - Instead of stopping at an arbitrary epoch number, monitor the vlidation loss. If the validation loss stops decreasing for 2 or 3 epochs, stop training immediately. Any further training is just overfitting.
+  - Instead of stopping at an arbitrary epoch number, monitor the validation loss. If the validation loss stops decreasing for 2 or 3 epochs, stop training immediately. Any further training is just overfitting.
   - Data Augmentation over Raw Volume
     - If you have 10000 images, you can artifically create 50,000 by slightly rotating or blurring them in memory
     - More effecting than just more unique images because it teaches the model to be "robust" against tilt and blur  
