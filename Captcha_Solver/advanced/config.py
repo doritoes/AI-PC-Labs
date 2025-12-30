@@ -1,10 +1,19 @@
-# advanced/config.py
 import string
 
-CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
+# --- Dataset Settings ---
+# We are moving to 40k unique images with 0 augmentations
+DATASET_SIZE = 40000 
 CAPTCHA_LENGTH = 6
-WIDTH, HEIGHT = 200, 80  # Increased size for 6 characters
-DATASET_SIZE = 20000      # Base images, add 1:2 augmentation for total 60k
-TOTAL_SIZE = 60000      # With 1:2 augmentation (Rotate/Blur)
-BATCH_SIZE = 32 # reduced to work in reduced RAM
-DEVICE = "xpu"           # Intel iGPU/dGPU via IPEX
+CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
+WIDTH = 200
+HEIGHT = 80
+
+# --- Training Hyperparameters ---
+# Dropping Batch Size to 16 to prevent the "16,000s" disk-swapping spikes
+BATCH_SIZE = 16 
+# Increased Learning Rate to force the model off the 4.12 loss floor
+LEARNING_RATE = 0.004 
+EPOCHS = 35
+
+# --- Hardware Settings ---
+DEVICE = "xpu"  # Targeted for Intel Xe2 iGPU
