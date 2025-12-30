@@ -96,8 +96,8 @@ def train():
             optimizer.step()
             total_loss += loss.item()
 
-            # MID-EPOCH MEMORY PURGE (Every 100 Batches)
-            if i % 100 == 0 and i > 0:
+            # MID-EPOCH MEMORY PURGE (Every 50 Batches)
+            if i % 50 == 0 and i > 0:
                 torch.xpu.empty_cache()
 
         # Validation Phase
