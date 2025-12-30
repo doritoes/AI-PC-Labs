@@ -15,7 +15,7 @@ In this step we install PyTorch, the primary engine we will use to build and tra
         - `nncf` - Neural Network Compression Framework - secret sauce to shrink the model for the NPU
 ## Test
 1. Hardware Check
-    - Run the script ot verify PyTorch is ready to use all 20 cores of the Intel Core Ultra 7 265T
+    - Run the script to verify PyTorch is ready to use all 20 cores of the Intel Core Ultra 7 265T
         - `python -c "import torch; print(f'PyTorch Version: {torch.__version__}'); print(f'Available CPU Threads: {torch.get_num_threads()}')"`
         - Expect to see PyTorch Version: 2.9.1+cpu and Available CPU Threads: 20
 
