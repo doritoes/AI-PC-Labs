@@ -9,7 +9,7 @@ IMPORTANT Be aware that the drivers and models and versions are very fluid, and 
 - Had to bypass the NPUW optimizer because it currently lacks a "map" for the specific architecture of Qwen2.5 lm_head layer, leading to a "MatMul map" crash
 - Level Zero (L0) Hardware Abstraction was disabled, forced OpenVINO to use a more stable communication path to the silicon, preventing memory sync errors between the system RAM and the NPU's local scratchpad. The dedicated L0 memory was unable to be reserved.
 
-IMPORTANT We are setting up Python 3.12 in this Lab to account for the [Advanced Lab](advanced/README.md) section. At the time of writing Python 3.14 did not have the required 'wheels' built. Currenctly 3.12 is the "sweet spot" for AI. You might also 3.13.
+IMPORTANT We are setting up Python 3.12 in this Lab to account for the [Advanced Lab](advanced/README.md) section. At the time of writing Python 3.14 did not have the required 'wheels' built. Currently 3.12 is the "sweet spot" for AI. You might also 3.13.
 
 Prerequisites:
 - Window 11 Pro already installed and configured
