@@ -13,6 +13,8 @@ To handle this, we will leverage the Intel GPU (iGPU) on your Arrow Lake chip us
 
 WARNING you are entering dependency hell. The following was tested on this specific environment.
 
+WARNING this is running on the very edge of RAM. You NEED to close out all apps when you are training. If memory utilization goes over 91%, find something to close. If the Eposh time goes too high, check memory. If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage. Sometimes you need to do a hard clear of GPU cache: `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
+
 NOTE Once the model is at 90% accuracy you can increase the complexity of the augmentations like adding noise or lines
 
 1. If you haven't already, install Python 3.12
