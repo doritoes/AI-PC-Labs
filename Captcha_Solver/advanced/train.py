@@ -5,25 +5,23 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from torchvision import transforms
 from PIL import Image
 import os, random, glob, time, gc, string, shutil
+import sys
 
 # Import from your config.py
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, DATASET_SIZE
 
 # HARDWARE TUNING OVERRIDES
-BATCH_SIZE = 8       # Lowered for single-channel stability
-INITIAL_LR = 0.008   # "Jolt" to break the 4.12 plateau
+BATCH_SIZE = 8       
+INITIAL_LR = 0.008   
 
-# --- 1. DATASET GENERATION (Restored) ---
+# --- 1. DATASET GENERATION ---
 def prepare_dataset(output_dir):
     gen_start = time.time()
-    
-    # Check if we already have the full dataset
     if os.path.exists(output_dir) and len(glob.glob(os.path.join(output_dir, "*.png"))) >= DATASET_SIZE:
-        print(f"📊 Dataset verified with {DATASET_SIZE} images. Skipping generation.")
+        print(f"📊 Dataset verified with {DATASET_SIZE} images.")
         return
 
     if os.path.exists(output_dir):
-        print("🧹 Clearing incomplete dataset for fresh start...")
         shutil.rmtree(output_dir)
         
     from captcha.image import ImageCaptcha
@@ -34,14 +32,12 @@ def prepare_dataset(output_dir):
     for i in range(DATASET_SIZE):
         label = "".join(random.choices(CHARS, k=CAPTCHA_LENGTH))
         base_path = os.path.join(output_dir, f"{label}_{i}.png")
-        img_pil = generator.generate_image(label)
-        img_pil.save(base_path)
+        generator.generate_image(label).save(base_path)
         
-        if i % 5000 == 0 and i > 0:
-            print(f"  > {i} images generated...")
-            gc.collect() # RAM safety check during generation
-
-    print(f"✅ Generation complete in {time.time() - gen_start:.2f}s")
+        if i % 1000 == 0 and i > 0:
+            sys.stdout.write(f"\r  > Progress: {i}/{DATASET_SIZE} images created...")
+            sys.stdout.flush()
+    print(f"\n✅ Generation complete in {time.time() - gen_start:.2f}s")
 
 # --- 2. MODEL DEFINITION ---
 class CaptchaModel(nn.Module):
@@ -87,11 +83,10 @@ def train():
     device = torch.device("xpu") 
     torch.xpu.empty_cache()
     gc.collect()
-    print(f"🚀 Watchdog Training Active | Device: {torch.xpu.get_device_name(0)} | Batch: {BATCH_SIZE}")
+    print(f"🚀 Training Active | Device: {torch.xpu.get_device_name(0)} | Batch: {BATCH_SIZE}")
 
     model = CaptchaModel().to(device)
     optimizer = optim.Adam(model.parameters(), lr=INITIAL_LR) 
-    # Scheduler: Cuts LR by 0.5 if accuracy doesn't move for 2 epochs
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=2)
     criterion = nn.CrossEntropyLoss()
     
@@ -102,12 +97,11 @@ def train():
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, num_workers=0)
 
-    best_acc = 0.0
-
     for epoch in range(50):
         epoch_start = time.time()
         model.train()
         total_loss = 0
+        num_batches = len(train_loader)
         
         for i, (imgs, lbls) in enumerate(train_loader):
             batch_start = time.time()
@@ -122,15 +116,16 @@ def train():
             optimizer.step()
             total_loss += loss.item()
 
-            # --- WATCHDOG LOGIC ---
-            # If a batch takes > 2s, we have a driver hang. Flush now.
+            # LIVE PROGRESS UPDATE
+            if i % 10 == 0:
+                percent = (i / num_batches) * 100
+                sys.stdout.write(f"\rEpoch {epoch+1:02d} | [{'#' * int(percent//5)}{'-' * (20 - int(percent//5))}] {percent:.1f}% | Loss: {loss.item():.4f}")
+                sys.stdout.flush()
+
+            # Watchdog: If batch takes > 2s, flush cache
             if (time.time() - batch_start) > 2.0:
                 torch.xpu.empty_cache()
                 gc.collect()
-
-            # Periodic comfort flush
-            if i % 250 == 0 and i > 0:
-                torch.xpu.empty_cache()
 
         # Validation Phase
         model.eval()
@@ -143,25 +138,17 @@ def train():
                 correct += (preds == lbls).all(dim=1).sum().item()
         
         val_acc = (correct / len(val_ds)) * 100
-        avg_loss = total_loss / len(train_loader)
-        
-        # Scheduler Step
+        avg_loss = total_loss / num_batches
         scheduler.step(val_acc)
-        current_lr = optimizer.param_groups[0]['lr']
         
-        epoch_dur = time.time() - epoch_start
-        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | LR: {current_lr:.5f} | Time: {epoch_dur:.2f}s")
+        sys.stdout.write(f"\r✅ Epoch {epoch+1:02d} | Final Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {time.time()-epoch_start:.2f}s\n")
+        sys.stdout.flush()
 
-        if val_acc > best_acc:
-            best_acc = val_acc
-            torch.save(model.state_dict(), "captcha_model_best.pth")
-
-        # Global cleanup
+        torch.save(model.state_dict(), "captcha_model_latest.pth")
         torch.xpu.empty_cache()
         gc.collect()
 
-    torch.save(model.state_dict(), "captcha_model_final.pth")
-    print("✨ Training complete. Final model saved.")
+    print("✨ Training complete.")
 
 if __name__ == "__main__":
     train()
