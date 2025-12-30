@@ -20,7 +20,7 @@ NOTE The script reports the "loss". It's the "Error Score" or the "Difference be
 Example restua
 
 ## Learn More
-Compare results/accurace with 5000 images and 5 epoch (faster less intensive training)
+Compare results/accuracy with 5000 images and 5 epoch (faster less intensive training)
 - How what tradeoff is there between between training data size and number of epochs?
 If you switch to the XPU (using the GPU with PyTorch)
 - How did this affect the training time?
