@@ -9,27 +9,12 @@ import os, random, glob, time, gc, string, shutil
 # Import from your config.py
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DATASET_SIZE, LEARNING_RATE
 
-# --- 1. CLEAN DATA GENERATION ---
+# --- 1. DATASET CHECK ---
 def prepare_dataset(output_dir):
-    gen_start = time.time()
-    if os.path.exists(output_dir):
-        print("🧹 Dataset exists. Skipping generation for this test.")
-        return
-    
-    from captcha.image import ImageCaptcha
-    generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
-    os.makedirs(output_dir, exist_ok=True)
-    print(f"🎨 Generating {DATASET_SIZE} unique captchas...")
-    
-    for i in range(DATASET_SIZE):
-        label = "".join(random.choices(CHARS, k=CAPTCHA_LENGTH))
-        base_path = os.path.join(output_dir, f"{label}_{i}.png")
-        generator.generate_image(label).save(base_path)
-        if i % 5000 == 0 and i > 0:
-            print(f"  > {i} images ready...")
-            gc.collect()
-
-    print(f"✅ Generation complete in {time.time() - gen_start:.2f}s")
+    if not os.path.exists(output_dir) or len(glob.glob(os.path.join(output_dir, "*.png"))) < 100:
+        print("❌ Dataset missing. Please run the generation script/version first.")
+        exit()
+    print("📊 Dataset verified. Proceeding to training.")
 
 # --- 2. MODEL DEFINITION ---
 class CaptchaModel(nn.Module):
@@ -84,7 +69,7 @@ def train():
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, num_workers=0)
 
-    print(f"🚀 Training on {torch.xpu.get_device_name(0)} (Batch Size: {BATCH_SIZE})")
+    print(f"🚀 Training on {torch.xpu.get_device_name(0)} | Purge Frequency: 100 batches")
     best_acc = 0.0
 
     for epoch in range(35):
@@ -104,11 +89,11 @@ def train():
             optimizer.step()
             total_loss += loss.item()
 
-            # --- MID-EPOCH MEMORY PURGE ---
-            if i % 500 == 0 and i > 0:
+            # --- HIGH-FREQUENCY MEMORY PURGE (Every 100 Batches) ---
+            if i % 100 == 0 and i > 0:
                 torch.xpu.empty_cache()
-                # print(f"  > Batch {i}: Cache cleared to prevent stall.")
 
+        # Validation
         model.eval()
         correct = 0
         with torch.no_grad():
@@ -126,9 +111,10 @@ def train():
             best_acc = val_acc
             torch.save(model.state_dict(), "captcha_model_best.pth")
 
+        # Global Cleanup
         torch.xpu.empty_cache()
         gc.collect()
-        time.sleep(5) 
+        time.sleep(2) 
 
     torch.save(model.state_dict(), "captcha_model_final.pth")
     print("✨ Training complete.")
