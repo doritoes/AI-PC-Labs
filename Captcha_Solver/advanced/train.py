@@ -9,14 +9,15 @@ import os, random, glob, time, gc, string, shutil
 # Import from your config.py
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DATASET_SIZE, LEARNING_RATE
 
-# --- 1. DATASET CHECK ---
+# --- 1. DATASET VERIFICATION ---
 def prepare_dataset(output_dir):
+    # Check for at least some images to ensure we don't start empty
     if not os.path.exists(output_dir) or len(glob.glob(os.path.join(output_dir, "*.png"))) < 100:
-        print("❌ Dataset missing. Please run the generation script/version first.")
+        print("❌ Dataset missing or incomplete. Please check your data folder.")
         exit()
     print("📊 Dataset verified. Proceeding to training.")
 
-# --- 2. MODEL DEFINITION ---
+# --- 2. MODEL ARCHITECTURE ---
 class CaptchaModel(nn.Module):
     def __init__(self):
         super(CaptchaModel, self).__init__()
@@ -57,7 +58,12 @@ def train():
     dataset_path = os.path.join(os.getcwd(), "dataset")
     prepare_dataset(dataset_path)
 
+    # --- STARTUP MEMORY INITIALIZATION ---
     device = torch.device("xpu") 
+    torch.xpu.empty_cache()
+    gc.collect()
+    print("🧹 Initial XPU Cache Purged. Starting training with clean slate.")
+
     model = CaptchaModel().to(device)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE) 
     criterion = nn.CrossEntropyLoss()
@@ -69,7 +75,7 @@ def train():
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, num_workers=0)
 
-    print(f"🚀 Training on {torch.xpu.get_device_name(0)} | Purge Frequency: 100 batches")
+    print(f"🚀 Training on {torch.xpu.get_device_name(0)} (Batch Size: {BATCH_SIZE})")
     best_acc = 0.0
 
     for epoch in range(35):
@@ -81,6 +87,7 @@ def train():
             imgs, lbls = imgs.to(device), lbls.to(device)
             optimizer.zero_grad()
             
+            # Using Float16 Mixed Precision for Intel Xe2 efficiency
             with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
                 outputs = model(imgs)
                 loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
@@ -89,11 +96,11 @@ def train():
             optimizer.step()
             total_loss += loss.item()
 
-            # --- HIGH-FREQUENCY MEMORY PURGE (Every 100 Batches) ---
+            # MID-EPOCH MEMORY PURGE (Every 100 Batches)
             if i % 100 == 0 and i > 0:
                 torch.xpu.empty_cache()
 
-        # Validation
+        # Validation Phase
         model.eval()
         correct = 0
         with torch.no_grad():
@@ -105,19 +112,21 @@ def train():
         
         val_acc = (correct / len(val_ds)) * 100
         avg_loss = total_loss / len(train_loader)
-        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {time.time()-epoch_start:.2f}s")
+        epoch_dur = time.time() - epoch_start
+        
+        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {epoch_dur:.2f}s")
 
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), "captcha_model_best.pth")
 
-        # Global Cleanup
+        # End of Epoch Cleanup
         torch.xpu.empty_cache()
         gc.collect()
-        time.sleep(2) 
+        time.sleep(2) # Cooldown pulse
 
     torch.save(model.state_dict(), "captcha_model_final.pth")
-    print("✨ Training complete.")
+    print("✨ Training complete. Final model saved.")
 
 if __name__ == "__main__":
     train()
