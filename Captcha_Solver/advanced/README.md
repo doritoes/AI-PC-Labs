@@ -5,8 +5,9 @@ To handle this, we will leverage the Intel GPU (iGPU) on the Arrow Lake chip usi
 - much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
 - use CPU to generate training data images, and allow iGPU to train the model
 - includes early stopping (monitors validation loss and stops early to prevent over-training)
-- uses 20,000 images + 40,000 slightly modified images for training (1:2 augmentation)
+- uses 40,000 images for training
 - increasing game to solve 100 in 10 seconds
+- Disable Intel Wolf Secruity protections during the training run
 
 Heavily tuned for this hardware
 - tuned dataset size and batch size
