@@ -9,33 +9,27 @@ import os, random, glob, time, gc, string, shutil
 # Import from your config.py
 from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, BATCH_SIZE, DATASET_SIZE, LEARNING_RATE
 
-# --- 1. CLEAN DATA GENERATION (0% Augmentation) ---
+# --- 1. CLEAN DATA GENERATION ---
 def prepare_dataset(output_dir):
     gen_start = time.time()
-    
-    # Fresh start to prevent mixing old augmented data with new unique data
     if os.path.exists(output_dir):
-        print("🧹 Clearing old dataset for fresh 0-augmentation run...")
-        shutil.rmtree(output_dir)
+        print("🧹 Dataset exists. Skipping generation for this test.")
+        return
     
     from captcha.image import ImageCaptcha
     generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
     os.makedirs(output_dir, exist_ok=True)
-    
     print(f"🎨 Generating {DATASET_SIZE} unique captchas...")
     
     for i in range(DATASET_SIZE):
         label = "".join(random.choices(CHARS, k=CAPTCHA_LENGTH))
         base_path = os.path.join(output_dir, f"{label}_{i}.png")
-        img_pil = generator.generate_image(label)
-        img_pil.save(base_path)
-        
+        generator.generate_image(label).save(base_path)
         if i % 5000 == 0 and i > 0:
             print(f"  > {i} images ready...")
-            gc.collect() # Mid-generation memory sweep
+            gc.collect()
 
-    gen_duration = time.time() - gen_start
-    print(f"✅ Generation complete in {gen_duration:.2f}s")
+    print(f"✅ Generation complete in {time.time() - gen_start:.2f}s")
 
 # --- 2. MODEL DEFINITION ---
 class CaptchaModel(nn.Module):
@@ -80,8 +74,6 @@ def train():
 
     device = torch.device("xpu") 
     model = CaptchaModel().to(device)
-    
-    # Using LEARNING_RATE from config (0.004)
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE) 
     criterion = nn.CrossEntropyLoss()
     
@@ -89,7 +81,6 @@ def train():
     train_size = int(0.9 * len(full_ds))
     train_ds, val_ds = random_split(full_ds, [train_size, len(full_ds)-train_size])
     
-    # Num_workers=0 is safer for 16GB RAM to avoid multiprocessing overhead
     train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
     val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, num_workers=0)
 
@@ -101,7 +92,7 @@ def train():
         model.train()
         total_loss = 0
         
-        for imgs, lbls in train_loader:
+        for i, (imgs, lbls) in enumerate(train_loader):
             imgs, lbls = imgs.to(device), lbls.to(device)
             optimizer.zero_grad()
             
@@ -113,7 +104,11 @@ def train():
             optimizer.step()
             total_loss += loss.item()
 
-        # Validation
+            # --- MID-EPOCH MEMORY PURGE ---
+            if i % 500 == 0 and i > 0:
+                torch.xpu.empty_cache()
+                # print(f"  > Batch {i}: Cache cleared to prevent stall.")
+
         model.eval()
         correct = 0
         with torch.no_grad():
@@ -125,23 +120,15 @@ def train():
         
         val_acc = (correct / len(val_ds)) * 100
         avg_loss = total_loss / len(train_loader)
-        epoch_dur = time.time() - epoch_start
-        
-        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {epoch_dur:.2f}s")
+        print(f"✅ Epoch {epoch+1:02d} | Loss: {avg_loss:.4f} | Acc: {val_acc:.2f}% | Time: {time.time()-epoch_start:.2f}s")
 
-        # Smart Stop & Weight Saving
         if val_acc > best_acc:
             best_acc = val_acc
             torch.save(model.state_dict(), "captcha_model_best.pth")
 
-        if val_acc >= 98.5:
-            print("🎯 Target Accuracy reached. Stopping to save hardware.")
-            break
-
-        # Aggressive Memory Cleanup
         torch.xpu.empty_cache()
         gc.collect()
-        time.sleep(5) # Cooldown pulse for Arrow Lake
+        time.sleep(5) 
 
     torch.save(model.state_dict(), "captcha_model_final.pth")
     print("✨ Training complete.")
