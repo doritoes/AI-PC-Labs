@@ -6,6 +6,7 @@ from torchvision import transforms
 from captcha.image import ImageCaptcha
 import numpy as np
 import time
+import os
 import config
 from model import AdvancedCaptchaModel
 
@@ -20,23 +21,24 @@ class CaptchaDataset(Dataset):
         return self.size
 
     def __getitem__(self, idx):
-        # Generate on-the-fly (Uses CPU threads)
         target_text = ''.join(np.random.choice(list(self.chars), self.length))
         img = self.generator.generate_image(target_text).convert('L')
         img_tensor = transforms.ToTensor()(img)
-        
         target = torch.zeros(self.length, len(self.chars))
         for i, char in enumerate(target_text):
             target[i, self.chars.find(char)] = 1
-            
         return img_tensor, target
+
+def format_time(seconds):
+    """Helper to format seconds into MM:SS or HH:MM:SS"""
+    if seconds < 3600:
+        return time.strftime("%M:%S", time.gmtime(seconds))
+    return time.strftime("%H:%M:%S", time.gmtime(seconds))
 
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     
-    # --- THREAD OPTIMIZATION ---
-    # num_workers=12 leverages your 20-thread CPU
-    # pin_memory=True speeds up the transfer from RAM to iGPU
+    # Keeping your optimized 12 workers
     dataloader = DataLoader(
         dataset, 
         batch_size=config.BATCH_SIZE, 
@@ -49,25 +51,19 @@ def train():
     device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
     
-    # Load existing weights if they exist to prevent losing progress
     if os.path.exists("advanced_lab_model.pth"):
         try:
             model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
-            print("🔄 Loaded existing checkpoint. Continuing training...")
+            print("🔄 Loaded existing checkpoint.")
         except:
-            print("⚠️ No valid checkpoint found, starting fresh.")
+            print("⚠️ Starting fresh.")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
-    
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, 
-        max_lr=config.LEARNING_RATE, 
-        steps_per_epoch=len(dataloader), 
-        epochs=config.EPOCHS
-    )
+    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=config.LEARNING_RATE, steps_per_epoch=len(dataloader), epochs=config.EPOCHS)
 
-    print(f"🚀 Active | Device: {config.DEVICE} | Workers: 12 | Batch: {config.BATCH_SIZE}")
+    print(f"🚀 Active | Device: {config.DEVICE} | Workers: 12")
+    print(f"---")
 
     for epoch in range(config.EPOCHS):
         model.train()
@@ -79,28 +75,28 @@ def train():
             
             optimizer.zero_grad()
             outputs = model(images)
-            
-            loss = criterion(outputs.view(-1, len(config.CHARS)), 
-                             labels.view(-1, len(config.CHARS)).argmax(dim=1))
-            
+            loss = criterion(outputs.view(-1, len(config.CHARS)), labels.view(-1, len(config.CHARS)).argmax(dim=1))
             loss.backward()
             optimizer.step()
             scheduler.step()
             
             running_loss += loss.item()
             
-            if i % 50 == 0:
+            if i % 20 == 0:
                 elapsed = time.time() - start_time
-                # Added "it/s" (iterations per second) so we can see the speed boost
                 it_per_sec = (i + 1) / elapsed
-                print(f"Epoch {epoch+1:02d} | [{i}/{len(dataloader)}] Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s", end='\r')
+                
+                # Calculate ETA
+                remaining_batches = len(dataloader) - (i + 1)
+                eta_seconds = remaining_batches / it_per_sec
+                
+                progress = ((i + 1) / len(dataloader)) * 100
+                
+                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:4.2f} it/s | ETA: {format_time(eta_seconds)}", end='\r')
 
         epoch_loss = running_loss / len(dataloader)
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Total Time: {time.time() - start_time:.2f}s")
-        
-        # Save checkpoint
+        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Total Time: {format_time(time.time() - start_time)}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
-    import os
     train()
