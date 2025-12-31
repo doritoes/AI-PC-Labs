@@ -10,8 +10,7 @@ import os
 import config
 from model import AdvancedCaptchaModel
 
-# --- GLOBAL START (Wall Clock) ---
-# This captures the exact second you run the command
+# Capture absolute start
 WALL_CLOCK_START = time.time()
 
 class CaptchaDataset(Dataset):
@@ -34,13 +33,19 @@ class CaptchaDataset(Dataset):
         return img_tensor, target
 
 def format_time(seconds):
-    if seconds < 0: return "00:00"
-    if seconds < 3600:
-        return time.strftime("%M:%S", time.gmtime(seconds))
-    h = int(seconds // 3600)
-    m = int((seconds % 3600) // 60)
-    s = int(seconds % 60)
-    return f"{h:02d}:{m:02d}:{s:02d}"
+    """Direct math calculation to prevent '1 sec = 1 min' errors"""
+    if seconds is None or seconds < 0: 
+        return "00:00"
+    
+    seconds = int(seconds)
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+    secs = seconds % 60
+    
+    if hours > 0:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    else:
+        return f"{minutes:02d}:{secs:02d}"
 
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
@@ -97,16 +102,19 @@ def train():
                 elapsed_epoch = now - epoch_start_time
                 total_wall_time = now - WALL_CLOCK_START
                 
-                it_per_sec = (i + 1) / elapsed_epoch
+                # it_per_sec calculation
+                it_per_sec = (i + 1) / elapsed_epoch if elapsed_epoch > 0 else 0
+                
+                # ETA calculation
                 remaining_batches = len(dataloader) - (i + 1)
-                eta_seconds = remaining_batches / it_per_sec
+                eta_seconds = remaining_batches / it_per_sec if it_per_sec > 0 else 0
+                
                 progress = ((i + 1) / len(dataloader)) * 100
                 
                 print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:4.2f} it/s | ETA: {format_time(eta_seconds)} | Total: {format_time(total_wall_time)}", end='\r')
 
         epoch_loss = running_loss / len(dataloader)
-        final_total = time.time() - WALL_CLOCK_START
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Epoch Time: {format_time(time.time() - epoch_start_time)} | Wall Clock Total: {format_time(final_total)}")
+        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Epoch Time: {format_time(time.time() - epoch_start_time)} | Wall Total: {format_time(time.time() - WALL_CLOCK_START)}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
