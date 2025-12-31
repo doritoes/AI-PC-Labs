@@ -1,29 +1,29 @@
 # Advanced CAPTCHA
-Moving into an Advanced tier is a significant jump. We are shifting from a simple 10-digit classifier to a 62-character alphanumeric model ($a-z, A-Z, 0-9$). We are moving to a 6-character string instead of 4. This increases the complexity of the output layer from 40 neurons to 372 neurons (62 x 6 characters).
+Moving into an Advanced tier is a significant jump. We are shifting from a simple 10-digit classifier to a 62-character alphanumeric model (a-z, A-Z, 0-9). We are moving to a 6-character string instead of 4. This increases the complexity of the output layer from 40 neurons to 372 neurons (62 x 6 characters).
 
 To handle this, we will leverage the Intel GPU (iGPU) on the Arrow Lake chip using intel_extension_for_pytorch (IPEX)
-- much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
-- use CPU to generate training data images, and allow iGPU to train the model
-- includes early stopping (monitors validation loss and stops early to prevent over-training)
-- uses 40,000 images for training
-- increasing game to solve 100 in 10 seconds
+- Much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
+- Use CPU to generate training data images, and allow iGPU to train the model
+  - This means infinite training data! We use half the CPU cores at the start of the epoch to generate fresh CAPTHAS
+- Includes learning speed managment (monitors validation loss, when to slow down and fine type, and stops early to prevent over-training)
+- `train.py` is cable of resuming training on the results of the last epoch
+- Increasing game to solve 100 in 10 seconds
 - Disable Intel Wolf Secruity protections during the training run
 
 Heavily tuned for this hardware
-- tuned dataset size and batch size
+- Tuned dataset size and batch size
   - save VRAM for the 16GB RAM (shared GPU/CPU/system)
   - adjust workload to fit within 35W power envelope
-- in-loop memory purge runs every 500 bathes to try and avoid memory stall
-- single bank of RAM, so tune RAM load
-- If an epoch is running long, heard-clearing GPU cache will bring it back to life
+- In-loop memory purge runs to try and avoid memory stall
+- Single bank of RAM, so tune RAM load
+- NOTE If an epoch is running overly long, heard-clearing GPU cache will bring it back to life
   - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
 
-WARNING this puts an intensive load on your GPU
-- put your Mini on a wire rack and point a fan at it, or similarly keep it cool
-
-WARNING you are entering dependency hell. The following was tested on this specific environment at the time of writing.
-
-WARNING this is running on the very edge of RAM. You NEED to close out all apps when you are training. If memory utilization goes over 91%, find something to close. If the Eposh time goes too high, check memory. If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage. 
+WARNINGS :warning:
+- :warning: this puts an intensive load on your GPU
+  - put your Mini on a wire rack and point a fan at it, or similarly keep it cool
+- :warning: You are entering dependency hell. The following was tested on this specific environment at the time of writing.
+- :warning: This is running on the very edge of RAM. You NEED to close out all apps when you are training. If memory utilization goes over 91%, find something to close. If the Eposh time goes too high, check memory. If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage. 
 
 ## Advanced CAPTCHA Model
 1. If you haven't already, install Python 3.12
