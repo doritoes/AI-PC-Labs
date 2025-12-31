@@ -30,7 +30,6 @@ class CaptchaDataset(Dataset):
         return img_tensor, target
 
 def format_time(seconds):
-    """Helper to format seconds into MM:SS or HH:MM:SS"""
     if seconds < 0: return "00:00"
     if seconds < 3600:
         return time.strftime("%M:%S", time.gmtime(seconds))
@@ -39,13 +38,16 @@ def format_time(seconds):
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     
+    # --- OPTIMIZED FOR 16GB RAM ---
+    # 8 workers is more stable for shared memory architectures
     dataloader = DataLoader(
         dataset, 
         batch_size=config.BATCH_SIZE, 
         shuffle=True, 
-        num_workers=12, 
+        num_workers=8, 
         pin_memory=True,
-        prefetch_factor=2
+        prefetch_factor=2,
+        persistent_workers=True
     )
 
     device = torch.device(config.DEVICE)
@@ -54,7 +56,7 @@ def train():
     if os.path.exists("advanced_lab_model.pth"):
         try:
             model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
-            print("🔄 Loaded existing checkpoint.")
+            print("🔄 Loaded existing checkpoint. Resuming training...")
         except:
             print("⚠️ Starting fresh.")
 
@@ -62,10 +64,9 @@ def train():
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=config.LEARNING_RATE, steps_per_epoch=len(dataloader), epochs=config.EPOCHS)
 
-    print(f"🚀 Active | Device: {config.DEVICE} | Workers: 12")
+    print(f"🚀 Active | Device: {config.DEVICE} | Workers: 8")
     print(f"---")
 
-    # Start the Global Timer
     global_start_time = time.time()
 
     for epoch in range(config.EPOCHS):
@@ -85,17 +86,18 @@ def train():
             
             running_loss += loss.item()
             
+            # Flush iGPU cache periodically to prevent slowdowns
+            if i % 500 == 0:
+                torch.xpu.empty_cache()
+            
             if i % 20 == 0:
                 now = time.time()
                 elapsed_epoch = now - epoch_start_time
                 total_elapsed = now - global_start_time
                 
                 it_per_sec = (i + 1) / elapsed_epoch
-                
-                # Calculate ETA for current epoch
                 remaining_batches = len(dataloader) - (i + 1)
                 eta_seconds = remaining_batches / it_per_sec
-                
                 progress = ((i + 1) / len(dataloader)) * 100
                 
                 print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:4.2f} it/s | ETA: {format_time(eta_seconds)} | Total: {format_time(total_elapsed)}", end='\r')
