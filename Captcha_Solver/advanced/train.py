@@ -1,134 +1,110 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
+from captcha.image import ImageCaptcha
 from PIL import Image
-import os, random, glob, time, gc, sys
+import numpy as np
+import os
+import string
+import time
 
-# Config Overrides for the Advanced Scenario
-from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT, DATASET_SIZE
-BATCH_SIZE = 16 # Increased slightly now that we have deeper architecture
-MAX_LR = 0.01
+# Import our custom modules
+import config
+from model import AdvancedCaptchaModel
 
-# --- 1. ADVANCED MODEL (ResNet-Lite) ---
-class ResidualBlock(nn.Module):
-    def __init__(self, channels):
-        super().__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(channels, channels, 3, padding=1),
-            nn.BatchNorm2d(channels), nn.ReLU(),
-            nn.Conv2d(channels, channels, 3, padding=1),
-            nn.BatchNorm2d(channels)
-        )
-    def forward(self, x): return torch.relu(x + self.conv(x))
-
-class AdvancedCaptchaModel(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.layer1 = nn.Sequential(nn.Conv2d(1, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2))
-        self.res1 = ResidualBlock(64)
-        self.layer2 = nn.Sequential(nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2))
-        self.res2 = ResidualBlock(128)
-        self.layer3 = nn.Sequential(nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.MaxPool2d(2))
-        
-        # Flatten and Fully Connected
-        self.fc = nn.Sequential(nn.Linear(256 * 10 * 25, 512), nn.ReLU(), nn.Dropout(0.3))
-        self.output = nn.Linear(512, CAPTCHA_LENGTH * len(CHARS))
-
-    def forward(self, x):
-        x = self.layer1(x)
-        x = self.res1(x)
-        x = self.layer2(x)
-        x = self.res2(x)
-        x = self.layer3(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return self.output(x).view(-1, CAPTCHA_LENGTH, len(CHARS))
-
-# --- 2. DATASET LOADER ---
+# --- Dataset Generation ---
 class CaptchaDataset(Dataset):
-    def __init__(self, img_dir):
-        self.img_paths = glob.glob(os.path.join(img_dir, "*.png"))
-        self.transform = transforms.Compose([
-            transforms.Grayscale(), 
-            transforms.Resize((HEIGHT, WIDTH)),
-            transforms.ToTensor(), 
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-    def __len__(self): return len(self.img_paths)
+    def __init__(self, size, chars, length, width, height):
+        self.size = size
+        self.chars = chars
+        self.length = length
+        self.generator = ImageCaptcha(width=width, height=height)
+        
+    def __len__(self):
+        return self.size
+
     def __getitem__(self, idx):
-        path = self.img_paths[idx]
-        image = self.transform(Image.open(path))
-        label_str = os.path.basename(path)[:CAPTCHA_LENGTH]
-        label = torch.tensor([CHARS.find(c) for c in label_str], dtype=torch.long)
-        return image, label
+        # Generate random text
+        target_text = ''.join(np.random.choice(list(self.chars), self.length))
+        
+        # Create image and convert to Grayscale
+        img = self.generator.generate_image(target_text).convert('L')
+        
+        # Transform to Tensor and Normalize
+        img_tensor = transforms.ToTensor()(img)
+        
+        # Encode label (Multi-label One-Hot style)
+        target = torch.zeros(self.length, len(self.chars))
+        for i, char in enumerate(target_text):
+            target[i, self.chars.find(char)] = 1
+            
+        return img_tensor, target
 
 def train():
-    dataset_path = os.path.join(os.getcwd(), "dataset")
-    device = torch.device("xpu") 
+    print(f"🎨 Generating {config.DATASET_SIZE} unique captchas in memory...")
+    dataset = CaptchaDataset(
+        size=config.DATASET_SIZE, 
+        chars=config.CHARS, 
+        length=config.CAPTCHA_LENGTH,
+        width=config.WIDTH,
+        height=config.HEIGHT
+    )
     
-    # 20 CPU threads for pre-fetching (num_workers=4 is a safe balance)
-    full_ds = CaptchaDataset(dataset_path)
-    train_size = int(0.9 * len(full_ds))
-    train_ds, val_ds = random_split(full_ds, [train_size, len(full_ds)-train_size])
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, num_workers=4)
+    # Using 4 workers to feed the XPU efficiently
+    dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=4)
 
+    # Initialize Model on Device
+    device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
-    optimizer = optim.AdamW(model.parameters(), lr=MAX_LR/10, weight_decay=0.01)
     
-    # OneCycleLR: The "Super-Convergence" Scheduler
-    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=MAX_LR, 
-                                            steps_per_epoch=len(train_loader), epochs=30)
     criterion = nn.CrossEntropyLoss()
+    optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
     
-    print(f"🔬 Advanced Lab Started | Hardware: iGPU + {os.cpu_count()} CPU Threads")
+    # Scheduler to help "jump" the 4.12 loss floor
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer, 
+        max_lr=config.LEARNING_RATE, 
+        steps_per_epoch=len(dataloader), 
+        epochs=config.EPOCHS
+    )
 
-    for epoch in range(30):
-        epoch_start = time.time()
+    print(f"🚀 Training Active | Device: {config.DEVICE} | Batch: {config.BATCH_SIZE}")
+    print(f"---")
+
+    for epoch in range(config.EPOCHS):
         model.train()
-        total_loss = 0
+        running_loss = 0.0
+        start_time = time.time()
         
-        for i, (imgs, lbls) in enumerate(train_loader):
-            batch_start = time.time()
-            imgs, lbls = imgs.to(device), lbls.to(device)
-            optimizer.zero_grad()
+        for i, (images, labels) in enumerate(dataloader):
+            images, labels = images.to(device), labels.to(device)
             
-            with torch.amp.autocast(device_type="xpu", dtype=torch.float16):
-                outputs = model(imgs)
-                loss = criterion(outputs.view(-1, len(CHARS)), lbls.view(-1))
+            optimizer.zero_grad()
+            outputs = model(images)
+            
+            # Reshape for CrossEntropy: (Batch * Length, NumChars)
+            loss = criterion(outputs.view(-1, len(config.CHARS)), 
+                             labels.view(-1, len(config.CHARS)).argmax(dim=1))
             
             loss.backward()
             optimizer.step()
             scheduler.step()
-            total_loss += loss.item()
+            
+            running_loss += loss.item()
+            
+            if i % 100 == 99:
+                progress = (i + 1) / len(dataloader) * 100
+                print(f"Epoch {epoch+1:02d} | [{i+1}/{len(dataloader)}] {progress:.1f}% | Loss: {loss.item():.4f}", end='\r')
 
-            if i % 25 == 0:
-                percent = (i / len(train_loader)) * 100
-                sys.stdout.write(f"\rEpoch {epoch+1:02d} | [{'#' * int(percent//5)}{'-' * (20 - int(percent//5))}] {percent:.1f}% | Loss: {loss.item():.4f}")
-                sys.stdout.flush()
-
-            # Watchdog Purge
-            if (time.time() - batch_start) > 3.0:
-                torch.xpu.empty_cache()
-
-        # Validation
-        model.eval()
-        correct = 0
-        with torch.no_grad():
-            for imgs, lbls in val_loader:
-                imgs, lbls = imgs.to(device), lbls.to(device)
-                outputs = model(imgs)
-                preds = torch.argmax(outputs, dim=2)
-                correct += (preds == lbls).all(dim=1).sum().item()
+        epoch_loss = running_loss / len(dataloader)
+        epoch_time = time.time() - start_time
         
-        val_acc = (correct / len(val_ds)) * 100
-        print(f"\n✅ Epoch {epoch+1:02d} | Avg Loss: {total_loss/len(train_loader):.4f} | Acc: {val_acc:.2f}% | Time: {time.time()-epoch_start:.2f}s")
+        print(f"✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Time: {epoch_time:.2f}s")
         
+        # Save checkpoint after every epoch
         torch.save(model.state_dict(), "advanced_lab_model.pth")
-        torch.xpu.empty_cache()
-        gc.collect()
 
 if __name__ == "__main__":
     train()
