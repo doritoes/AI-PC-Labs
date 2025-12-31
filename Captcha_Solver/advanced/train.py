@@ -5,12 +5,12 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from captcha.image import ImageCaptcha
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import config
 from model import AdvancedCaptchaModel
 
-# The "Wall Clock" start time - Simple and direct.
+# Wall Clock Start
 START_TIME = datetime.now()
 
 class CaptchaDataset(Dataset):
@@ -50,7 +50,7 @@ def train():
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=config.LEARNING_RATE, steps_per_epoch=len(dataloader), epochs=config.EPOCHS)
 
-    print(f"🚀 Active | Device: {config.DEVICE} | Start: {START_TIME.strftime('%H:%M:%S')}")
+    print(f"🚀 Active | Device: {config.DEVICE} | Started At: {START_TIME.strftime('%H:%M:%S')}")
 
     for epoch in range(config.EPOCHS):
         model.train()
@@ -68,21 +68,25 @@ def train():
             
             if i % 20 == 0:
                 now = datetime.now()
-                # Total time since the script started
-                total_elapsed = str(now - START_TIME).split('.')[0] 
-                # Time for current epoch
-                epoch_elapsed = (now - epoch_start).total_seconds()
                 
+                # Direct calculation for Total Run Time
+                total_diff = now - START_TIME
+                total_hours, remainder = divmod(total_diff.seconds, 3600)
+                total_minutes, total_seconds = divmod(remainder, 60)
+                total_str = f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
+
+                # Calculate ETA for the current epoch
+                epoch_elapsed = (now - epoch_start).total_seconds()
                 it_per_sec = (i + 1) / epoch_elapsed if epoch_elapsed > 0 else 0
                 remaining_batches = len(dataloader) - (i + 1)
                 eta_secs = remaining_batches / it_per_sec if it_per_sec > 0 else 0
                 
-                # Simple integer math for ETA MM:SS
-                eta = f"{int(eta_secs // 60):02d}:{int(eta_secs % 60):02d}"
+                eta_min, eta_sec = divmod(int(eta_secs), 60)
+                eta_str = f"{eta_min:02d}:{eta_sec:02d}"
                 
-                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta} | Total: {total_elapsed}", end='\r')
+                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}", end='\r')
 
-        print(f"\n✅ Epoch {epoch+1:02d} Complete | Total Run Time: {str(datetime.now() - START_TIME).split('.')[0]}")
+        print(f"\n✅ Epoch {epoch+1:02d} Complete | Final Wall Time: {total_str}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
