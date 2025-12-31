@@ -5,7 +5,7 @@ from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 from captcha.image import ImageCaptcha
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 import os
 import config
 from model import AdvancedCaptchaModel
@@ -32,6 +32,14 @@ class CaptchaDataset(Dataset):
             target[i, self.chars.find(char)] = 1
         return img_tensor, target
 
+def format_seconds(seconds):
+    """Direct math for wall-clock time."""
+    s = int(seconds)
+    hours = s // 3600
+    minutes = (s % 3600) // 60
+    secs = s % 60
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
@@ -54,7 +62,7 @@ def train():
 
     for epoch in range(config.EPOCHS):
         model.train()
-        epoch_start = datetime.now()
+        epoch_start_time = datetime.now()
         
         for i, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
@@ -69,24 +77,22 @@ def train():
             if i % 20 == 0:
                 now = datetime.now()
                 
-                # Direct calculation for Total Run Time
-                total_diff = now - START_TIME
-                total_hours, remainder = divmod(total_diff.seconds, 3600)
-                total_minutes, total_seconds = divmod(remainder, 60)
-                total_str = f"{total_hours:02d}:{total_minutes:02d}:{total_seconds:02d}"
+                # Total Wall Clock
+                total_str = format_seconds((now - START_TIME).total_seconds())
 
-                # Calculate ETA for the current epoch
-                epoch_elapsed = (now - epoch_start).total_seconds()
+                # Epoch Speed and ETA
+                epoch_elapsed = (now - epoch_start_time).total_seconds()
                 it_per_sec = (i + 1) / epoch_elapsed if epoch_elapsed > 0 else 0
                 remaining_batches = len(dataloader) - (i + 1)
                 eta_secs = remaining_batches / it_per_sec if it_per_sec > 0 else 0
                 
-                eta_min, eta_sec = divmod(int(eta_secs), 60)
-                eta_str = f"{eta_min:02d}:{eta_sec:02d}"
+                eta_str = f"{int(eta_secs // 60):02d}:{int(eta_secs % 60):02d}"
                 
-                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}", end='\r')
+                # The '        ' at the end wipes out ghost characters from previous longer lines
+                status_line = f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}        "
+                print(status_line, end='\r')
 
-        print(f"\n✅ Epoch {epoch+1:02d} Complete | Final Wall Time: {total_str}")
+        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f} | Total Run Time: {format_seconds((datetime.now() - START_TIME).total_seconds())}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
