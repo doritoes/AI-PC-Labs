@@ -10,7 +10,7 @@ import os
 import config
 from model import AdvancedCaptchaModel
 
-# Wall Clock Start
+# Capture absolute start - The "Wall Clock" anchor
 START_TIME = datetime.now()
 
 class CaptchaDataset(Dataset):
@@ -33,7 +33,7 @@ class CaptchaDataset(Dataset):
         return img_tensor, target
 
 def format_seconds(seconds):
-    """Direct math for wall-clock time."""
+    """Manual math for wall-clock time accuracy."""
     s = int(seconds)
     hours = s // 3600
     minutes = (s % 3600) // 60
@@ -42,7 +42,17 @@ def format_seconds(seconds):
 
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
-    dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=8, pin_memory=True, persistent_workers=True)
+    
+    # OPTIMIZED: 4 workers prevents the 20GB+ memory commitment seen in your Task Manager.
+    dataloader = DataLoader(
+        dataset, 
+        batch_size=config.BATCH_SIZE, 
+        shuffle=True, 
+        num_workers=4, 
+        pin_memory=True, 
+        persistent_workers=True,
+        prefetch_factor=2
+    )
 
     device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
@@ -56,7 +66,12 @@ def train():
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
-    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=config.LEARNING_RATE, steps_per_epoch=len(dataloader), epochs=config.EPOCHS)
+    scheduler = optim.lr_scheduler.OneCycleLR(
+        optimizer, 
+        max_lr=config.LEARNING_RATE, 
+        steps_per_epoch=len(dataloader), 
+        epochs=config.EPOCHS
+    )
 
     print(f"🚀 Active | Device: {config.DEVICE} | Started At: {START_TIME.strftime('%H:%M:%S')}")
 
@@ -74,11 +89,16 @@ def train():
             optimizer.step()
             scheduler.step()
             
+            # Aggressive cache clearing to keep XPU memory pressure low
+            if i % 100 == 0:
+                torch.xpu.empty_cache()
+            
             if i % 20 == 0:
                 now = datetime.now()
                 
                 # Total Wall Clock
-                total_str = format_seconds((now - START_TIME).total_seconds())
+                total_seconds_elapsed = (now - START_TIME).total_seconds()
+                total_str = format_seconds(total_seconds_elapsed)
 
                 # Epoch Speed and ETA
                 epoch_elapsed = (now - epoch_start_time).total_seconds()
@@ -88,11 +108,12 @@ def train():
                 
                 eta_str = f"{int(eta_secs // 60):02d}:{int(eta_secs % 60):02d}"
                 
-                # The '        ' at the end wipes out ghost characters from previous longer lines
-                status_line = f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}        "
-                print(status_line, end='\r')
+                # Print with trailing spaces to clear any 'ghost' characters
+                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}        ", end='\r')
 
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f} | Total Run Time: {format_seconds((datetime.now() - START_TIME).total_seconds())}")
+        # End of epoch summary
+        epoch_end_total = (datetime.now() - START_TIME).total_seconds()
+        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f} | Total Run Time: {format_seconds(epoch_end_total)}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
