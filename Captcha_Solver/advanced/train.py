@@ -10,6 +10,10 @@ import os
 import config
 from model import AdvancedCaptchaModel
 
+# --- GLOBAL START (Wall Clock) ---
+# This captures the exact second you run the command
+WALL_CLOCK_START = time.time()
+
 class CaptchaDataset(Dataset):
     def __init__(self, size, chars, length, width, height):
         self.size = size
@@ -33,13 +37,14 @@ def format_time(seconds):
     if seconds < 0: return "00:00"
     if seconds < 3600:
         return time.strftime("%M:%S", time.gmtime(seconds))
-    return f"{int(seconds // 3600):02d}:{time.strftime('%M:%S', time.gmtime(seconds % 3600))}"
+    h = int(seconds // 3600)
+    m = int((seconds % 3600) // 60)
+    s = int(seconds % 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
 
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     
-    # --- OPTIMIZED FOR 16GB RAM ---
-    # 8 workers is more stable for shared memory architectures
     dataloader = DataLoader(
         dataset, 
         batch_size=config.BATCH_SIZE, 
@@ -56,7 +61,7 @@ def train():
     if os.path.exists("advanced_lab_model.pth"):
         try:
             model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
-            print("🔄 Loaded existing checkpoint. Resuming training...")
+            print("🔄 Loaded existing checkpoint.")
         except:
             print("⚠️ Starting fresh.")
 
@@ -66,8 +71,6 @@ def train():
 
     print(f"🚀 Active | Device: {config.DEVICE} | Workers: 8")
     print(f"---")
-
-    global_start_time = time.time()
 
     for epoch in range(config.EPOCHS):
         model.train()
@@ -86,24 +89,24 @@ def train():
             
             running_loss += loss.item()
             
-            # Flush iGPU cache periodically to prevent slowdowns
             if i % 500 == 0:
                 torch.xpu.empty_cache()
             
             if i % 20 == 0:
                 now = time.time()
                 elapsed_epoch = now - epoch_start_time
-                total_elapsed = now - global_start_time
+                total_wall_time = now - WALL_CLOCK_START
                 
                 it_per_sec = (i + 1) / elapsed_epoch
                 remaining_batches = len(dataloader) - (i + 1)
                 eta_seconds = remaining_batches / it_per_sec
                 progress = ((i + 1) / len(dataloader)) * 100
                 
-                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:4.2f} it/s | ETA: {format_time(eta_seconds)} | Total: {format_time(total_elapsed)}", end='\r')
+                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:4.2f} it/s | ETA: {format_time(eta_seconds)} | Total: {format_time(total_wall_time)}", end='\r')
 
         epoch_loss = running_loss / len(dataloader)
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Epoch Time: {format_time(time.time() - epoch_start_time)} | Running Total: {format_time(time.time() - global_start_time)}")
+        final_total = time.time() - WALL_CLOCK_START
+        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {epoch_loss:.4f} | Epoch Time: {format_time(time.time() - epoch_start_time)} | Wall Clock Total: {format_time(final_total)}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
