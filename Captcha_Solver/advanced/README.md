@@ -45,6 +45,7 @@ WARNING this is running on the very edge of RAM. You NEED to close out all apps 
 9. Create a folder named `advanced`
 10. In the folder create
     - [config.py](config.py)
+    - [model.py](model.py)
     - [train.py](train.py)
     - [convert.py](convert.py)
     - [quantize.py](quantize.py)
