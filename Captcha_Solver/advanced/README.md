@@ -51,6 +51,10 @@ WARNINGS :warning:
     - [quantize.py](quantize.py)
     - [solve-captcha.py](solve-captcha.py)
     - [game.py](game.py)
+11. Start the GPU cache purge loop in a separate powershell window
+    - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
+    - This does a hard flush of GPU cache every minute for 1 day
+    - This is CPU to keep the training script working in such a small 16GB memory space
 11. Train
      - `python train.py`
      - Let it cook! The iGPU is a beast.
