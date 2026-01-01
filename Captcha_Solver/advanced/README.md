@@ -30,7 +30,7 @@ WARNINGS :warning:
   - See [Optimize for Training](Optimize_For_Training.md) for steps to clean up
     - First debloat Windows 11
     - Stop and Disable SysMain service
-    - Disable Wolf Security features, or better yet install them following the specific order provided
+    - Disable Wolf Security features, or better yet uninstall them following the specific order provided
     - Disable desktop transparency and animation effects (significantly reduces the dwm.exe (Desktop Window Manager) RAM footprint)
       - Search for "View advanced system settings"
       - Under Performance > Settings, choose Adjust for best performance
