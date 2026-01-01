@@ -23,7 +23,17 @@ WARNINGS :warning:
 - :warning: this puts an intensive load on your GPU
   - put your Mini on a wire rack and point a fan at it, or similarly keep it cool
 - :warning: You are entering dependency hell. The following was tested on this specific environment at the time of writing.
-- :warning: This is running on the very edge of RAM. You NEED to close out all apps when you are training. If memory utilization goes over 91%, find something to close. If the Eposh time goes too high, check memory. If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage. 
+- :warning: This is running on the very edge of RAM. You NEED to close out all apps when you are training.
+  - If memory utilization goes over 91%, find something to close
+  - If the Eposh time goes too high, check memory
+  - If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage.
+  - See [Optimize for Training](Optimize_For_Training.md) for steps to clean up
+    - First debloat Windows 11
+    - Stop and Disable SysMain service
+    - Disable Wolf Security features, or better yet install them following the specific order provided
+    - Disable desktop transparency and animation effects (significantly reduces the dwm.exe (Desktop Window Manager) RAM footprint)
+      - Search for "View advanced system settings"
+      - Under Performance > Settings, choose Adjust for best performance
 
 ## Advanced CAPTCHA Model
 1. If you haven't already, install Python 3.12
