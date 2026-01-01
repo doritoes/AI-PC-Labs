@@ -10,7 +10,6 @@ import os
 import config
 from model import AdvancedCaptchaModel
 
-# Capture absolute start - The "Wall Clock" anchor
 START_TIME = datetime.now()
 
 class CaptchaDataset(Dataset):
@@ -20,9 +19,6 @@ class CaptchaDataset(Dataset):
         self.length = length
         self.generator = ImageCaptcha(width=width, height=height)
         
-    def __len__(self):
-        return self.size
-
     def __getitem__(self, idx):
         target_text = ''.join(np.random.choice(list(self.chars), self.length))
         img = self.generator.generate_image(target_text).convert('L')
@@ -32,23 +28,22 @@ class CaptchaDataset(Dataset):
             target[i, self.chars.find(char)] = 1
         return img_tensor, target
 
+    def __len__(self): return self.size
+
 def format_seconds(seconds):
-    """Manual math for wall-clock time accuracy."""
     s = int(seconds)
-    hours = s // 3600
-    minutes = (s % 3600) // 60
-    secs = s % 60
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     
-    # OPTIMIZED: 4 workers prevents the 20GB+ memory commitment seen in your Task Manager.
+    # 2 WORKERS ONLY: This is the key. 4-8 workers are causing the 16GB swap. 
+    # 2 workers will keep "Committed Memory" below 15GB, stopping the SSD lag.
     dataloader = DataLoader(
         dataset, 
-        batch_size=config.BATCH_SIZE, 
+        batch_size=32,      # Increased from 16 to 32 to give the GPU more to do per "trip"
         shuffle=True, 
-        num_workers=4, 
+        num_workers=2,      
         pin_memory=True, 
         persistent_workers=True,
         prefetch_factor=2
@@ -58,26 +53,17 @@ def train():
     model = AdvancedCaptchaModel().to(device)
     
     if os.path.exists("advanced_lab_model.pth"):
-        try:
-            model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
-            print("🔄 Loaded existing checkpoint.")
-        except:
-            pass
+        model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, 
-        max_lr=config.LEARNING_RATE, 
-        steps_per_epoch=len(dataloader), 
-        epochs=config.EPOCHS
-    )
+    scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=config.LEARNING_RATE, steps_per_epoch=len(dataloader), epochs=config.EPOCHS)
 
-    print(f"🚀 Active | Device: {config.DEVICE} | Started At: {START_TIME.strftime('%H:%M:%S')}")
+    print(f"🚀 Active | Device: {config.DEVICE} | Workers: 2 | Started: {START_TIME.strftime('%H:%M:%S')}")
 
     for epoch in range(config.EPOCHS):
         model.train()
-        epoch_start_time = datetime.now()
+        epoch_start = datetime.now()
         
         for i, (images, labels) in enumerate(dataloader):
             images, labels = images.to(device), labels.to(device)
@@ -89,31 +75,16 @@ def train():
             optimizer.step()
             scheduler.step()
             
-            # Aggressive cache clearing to keep XPU memory pressure low
-            if i % 100 == 0:
-                torch.xpu.empty_cache()
+            if i % 50 == 0: torch.xpu.empty_cache() # More frequent cache clearing
             
-            if i % 20 == 0:
+            if i % 10 == 0:
                 now = datetime.now()
+                it_per_sec = (i + 1) / (now - epoch_start).total_seconds()
+                eta_secs = (len(dataloader) - (i + 1)) / it_per_sec if it_per_sec > 0 else 0
                 
-                # Total Wall Clock
-                total_seconds_elapsed = (now - START_TIME).total_seconds()
-                total_str = format_seconds(total_seconds_elapsed)
+                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {int(eta_secs // 60):02d}:{int(eta_secs % 60):02d} | Total: {format_seconds((now - START_TIME).total_seconds())}        ", end='\r')
 
-                # Epoch Speed and ETA
-                epoch_elapsed = (now - epoch_start_time).total_seconds()
-                it_per_sec = (i + 1) / epoch_elapsed if epoch_elapsed > 0 else 0
-                remaining_batches = len(dataloader) - (i + 1)
-                eta_secs = remaining_batches / it_per_sec if it_per_sec > 0 else 0
-                
-                eta_str = f"{int(eta_secs // 60):02d}:{int(eta_secs % 60):02d}"
-                
-                # Print with trailing spaces to clear any 'ghost' characters
-                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}        ", end='\r')
-
-        # End of epoch summary
-        epoch_end_total = (datetime.now() - START_TIME).total_seconds()
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f} | Total Run Time: {format_seconds(epoch_end_total)}")
+        print(f"\n✅ Epoch {epoch+1:02d} | Loss: {loss.item():.4f}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
