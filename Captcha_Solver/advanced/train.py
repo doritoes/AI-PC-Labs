@@ -10,7 +10,6 @@ import os
 import config
 from model import AdvancedCaptchaModel
 
-# Capture absolute start - The "Wall Clock" anchor
 START_TIME = datetime.now()
 
 class CaptchaDataset(Dataset):
@@ -33,20 +32,16 @@ class CaptchaDataset(Dataset):
         return img_tensor, target
 
 def format_seconds(seconds):
-    """Accurate H:MM:SS formatting."""
     s = int(seconds)
-    hours = s // 3600
-    minutes = (s % 3600) // 60
-    secs = s % 60
-    return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     
-    # num_workers=0 keeps RAM usage under the 16GB 'swapping' threshold
+    # Increase batch size to 128 to maximize GPU usage per CPU cycle
     dataloader = DataLoader(
         dataset, 
-        batch_size=config.BATCH_SIZE, 
+        batch_size=128, 
         shuffle=True, 
         num_workers=0, 
         pin_memory=True
@@ -71,7 +66,7 @@ def train():
         epochs=config.EPOCHS
     )
 
-    print(f"🚀 Active | Device: {config.DEVICE} | Mode: Single-Process | Started At: {START_TIME.strftime('%H:%M:%S')}")
+    print(f"🚀 Active | Device: {config.DEVICE} | Started: {START_TIME.strftime('%H:%M:%S')}")
 
     for epoch in range(config.EPOCHS):
         model.train()
@@ -87,13 +82,11 @@ def train():
             optimizer.step()
             scheduler.step()
             
-            if i % 20 == 0:
+            # Wipe cache every 10 iterations (Aggressive for shared iGPU RAM)
+            if i % 10 == 0:
+                torch.xpu.empty_cache()
                 now = datetime.now()
-                
-                # 1. Total Wall Clock
                 total_str = format_seconds((now - START_TIME).total_seconds())
-
-                # 2. Progress and ETA
                 epoch_elapsed = (now - epoch_start_time).total_seconds()
                 it_per_sec = (i + 1) / epoch_elapsed if epoch_elapsed > 0 else 0
                 
@@ -102,12 +95,9 @@ def train():
                 eta_secs = remaining_batches / it_per_sec if it_per_sec > 0 else 0
                 eta_str = f"{int(eta_secs // 60):02d}:{int(eta_secs % 60):02d}"
                 
-                # Full Status Information Restored
                 print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}        ", end='\r')
 
-        # Clear cache between epochs
-        torch.xpu.empty_cache()
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f} | Total Run Time: {format_seconds((datetime.now() - START_TIME).total_seconds())}")
+        print(f"\n✅ Epoch {epoch+1:02d} | Loss: {loss.item():.4f} | Total: {format_seconds((datetime.now() - START_TIME).total_seconds())}")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
