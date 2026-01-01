@@ -20,9 +20,12 @@ class CaptchaDataset(Dataset):
         self.generator = ImageCaptcha(width=width, height=height)
         
     def __getitem__(self, idx):
+        # We simplify the generation to the absolute minimum
         target_text = ''.join(np.random.choice(list(self.chars), self.length))
+        # Direct generation without extra PIL conversions
         img = self.generator.generate_image(target_text).convert('L')
         img_tensor = transforms.ToTensor()(img)
+        
         target = torch.zeros(self.length, len(self.chars))
         for i, char in enumerate(target_text):
             target[i, self.chars.find(char)] = 1
@@ -37,16 +40,15 @@ def format_seconds(seconds):
 def train():
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     
-    # 2 WORKERS ONLY: This is the key. 4-8 workers are causing the 16GB swap. 
-    # 2 workers will keep "Committed Memory" below 15GB, stopping the SSD lag.
+    # RADICAL CHANGE: num_workers=0
+    # This runs the data generation in the MAIN process. 
+    # While it sounds slower, it eliminates the 10GB+ "Committed Memory" overhead of sub-processes.
     dataloader = DataLoader(
         dataset, 
-        batch_size=32,      # Increased from 16 to 32 to give the GPU more to do per "trip"
+        batch_size=64,     # Increased to 64: Give the GPU a larger chunk to stay busy
         shuffle=True, 
-        num_workers=2,      
-        pin_memory=True, 
-        persistent_workers=True,
-        prefetch_factor=2
+        num_workers=0,      
+        pin_memory=True
     )
 
     device = torch.device(config.DEVICE)
@@ -59,7 +61,7 @@ def train():
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
     scheduler = optim.lr_scheduler.OneCycleLR(optimizer, max_lr=config.LEARNING_RATE, steps_per_epoch=len(dataloader), epochs=config.EPOCHS)
 
-    print(f"🚀 Active | Device: {config.DEVICE} | Workers: 2 | Started: {START_TIME.strftime('%H:%M:%S')}")
+    print(f"🚀 Active | Device: {config.DEVICE} | Mode: Single-Process (Memory Safe)")
 
     for epoch in range(config.EPOCHS):
         model.train()
@@ -75,16 +77,16 @@ def train():
             optimizer.step()
             scheduler.step()
             
-            if i % 50 == 0: torch.xpu.empty_cache() # More frequent cache clearing
-            
-            if i % 10 == 0:
+            # Flush cache every 20 batches
+            if i % 20 == 0:
+                torch.xpu.empty_cache()
                 now = datetime.now()
                 it_per_sec = (i + 1) / (now - epoch_start).total_seconds()
                 eta_secs = (len(dataloader) - (i + 1)) / it_per_sec if it_per_sec > 0 else 0
                 
-                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {int(eta_secs // 60):02d}:{int(eta_secs % 60):02d} | Total: {format_seconds((now - START_TIME).total_seconds())}        ", end='\r')
+                print(f"Ep {epoch+1:02d} | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | Total: {format_seconds((now - START_TIME).total_seconds())}        ", end='\r')
 
-        print(f"\n✅ Epoch {epoch+1:02d} | Loss: {loss.item():.4f}")
+        print(f"\n✅ Epoch {epoch+1:02d} Saved.")
         torch.save(model.state_dict(), "advanced_lab_model.pth")
 
 if __name__ == "__main__":
