@@ -10,67 +10,53 @@ import os
 import config
 from model import AdvancedCaptchaModel
 
-# Capture absolute start
 START_TIME = datetime.now()
 
 class CaptchaDataset(Dataset):
-    def __init__(self, size, chars, length, width, height, use_fixed_buffer=True):
+    def __init__(self, size, chars, length, width, height):
         self.size = size
         self.chars = chars
         self.length = length
-        self.use_fixed_buffer = use_fixed_buffer
         self.generator = ImageCaptcha(width=width, height=height)
         self.buffer = []
 
-        if self.use_fixed_buffer:
-            print(f"📦 MODE: Fixed Buffer | Pre-generating {size} images...")
-            for i in range(size):
-                item = self._generate_sample()
-                self.buffer.append(item)
-                if (i + 1) % 1000 == 0:
-                    print(f"  > Loaded {i + 1}/{size}...")
-            print("✅ Buffer Ready.")
-        else:
-            print("🚀 MODE: Infinite Random | Generating on-the-fly.")
-
-    def _generate_sample(self):
-        target_text = ''.join(np.random.choice(list(self.chars), self.length))
-        img = self.generator.generate_image(target_text).convert('L')
-        img_tensor = transforms.ToTensor()(img)
-        
-        target = torch.zeros(self.length, len(self.chars))
-        for i, char in enumerate(target_text):
-            target[i, self.chars.find(char)] = 1
-        return img_tensor, target
+        print(f"📦 BREAKOUT MODE: Pre-loading {size} images into RAM...")
+        for i in range(size):
+            target_text = ''.join(np.random.choice(list(self.chars), self.length))
+            # Generate and convert to grayscale
+            img = self.generator.generate_image(target_text).convert('L')
+            img_tensor = transforms.ToTensor()(img)
+            
+            # One-hot encoding for the target
+            target = torch.zeros(self.length, len(self.chars))
+            for i_char, char in enumerate(target_text):
+                target[i_char, self.chars.find(char)] = 1
+            
+            self.buffer.append((img_tensor, target))
+            if (i + 1) % 2000 == 0:
+                print(f"  > Progress: {i + 1}/{size} images cached.")
+        print("✅ RAM Buffer Ready.")
 
     def __len__(self):
         return self.size
 
     def __getitem__(self, idx):
-        if self.use_fixed_buffer:
-            return self.buffer[idx]
-        else:
-            return self._generate_sample()
+        return self.buffer[idx]
 
 def format_seconds(seconds):
     s = int(seconds)
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 def train():
-    # --- SUCCESS SWITCH ---
-    # Set to True to drop loss quickly. Set to False for infinite variety.
-    USE_FIXED_BUFFER = True 
-    BUFFER_SIZE = 10000 
-    # ----------------------
+    # Ensure fresh start by checking if user wants to delete old weights
+    if os.path.exists("advanced_lab_model.pth"):
+        print("⚠️ Found old weights. For a true BREAKOUT, consider deleting 'advanced_lab_model.pth' first.")
 
-    dataset = CaptchaDataset(
-        BUFFER_SIZE, config.CHARS, config.CAPTCHA_LENGTH, 
-        config.WIDTH, config.HEIGHT, use_fixed_buffer=USE_FIXED_BUFFER
-    )
-    
+    # Initialize Dataset and Loader
+    dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
     dataloader = DataLoader(
         dataset, 
-        batch_size=128, 
+        batch_size=config.BATCH_SIZE, 
         shuffle=True, 
         num_workers=0, 
         pin_memory=True
@@ -79,18 +65,20 @@ def train():
     device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
     
+    # Load weights only if they exist
     if os.path.exists("advanced_lab_model.pth"):
-        try:
-            model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
-            print("🔄 Loaded existing checkpoint.")
-        except:
-            pass
+        model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
+        print("🔄 Resuming from checkpoint...")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
+    
+    # scheduler to manage the learning rate curve
     scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=config.LEARNING_RATE, 
-        steps_per_epoch=len(dataloader), epochs=config.EPOCHS
+        optimizer, 
+        max_lr=config.LEARNING_RATE, 
+        steps_per_epoch=len(dataloader), 
+        epochs=config.EPOCHS
     )
 
     print(f"🚀 Active | Device: {config.DEVICE} | Started At: {START_TIME.strftime('%H:%M:%S')}")
@@ -104,23 +92,30 @@ def train():
             
             optimizer.zero_grad()
             outputs = model(images)
-            loss = criterion(outputs.view(-1, len(config.CHARS)), labels.view(-1, len(config.CHARS)).argmax(dim=1))
+            
+            # Reshape for CrossEntropy: (Batch * Length, Num_Chars)
+            loss = criterion(
+                outputs.view(-1, len(config.CHARS)), 
+                labels.view(-1, len(config.CHARS)).argmax(dim=1)
+            )
+            
             loss.backward()
             optimizer.step()
             scheduler.step()
             
-            if i % 10 == 0:
+            if i % 20 == 0:
                 now = datetime.now()
                 total_str = format_seconds((now - START_TIME).total_seconds())
-                it_per_sec = (i + 1) / (now - epoch_start_time).total_seconds()
-                progress = ((i + 1) / len(dataloader)) * 100
-                eta_secs = (len(dataloader) - (i + 1)) / it_per_sec if it_per_sec > 0 else 0
+                epoch_elapsed = (now - epoch_start_time).total_seconds()
+                it_per_sec = (i + 1) / epoch_elapsed if epoch_elapsed > 0 else 0
                 
-                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {int(eta_secs // 60):02d}:{int(eta_secs % 60):02d} | Total: {total_str}        ", end='\r')
+                progress = ((i + 1) / len(dataloader)) * 100
+                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | Total: {total_str}        ", end='\r')
 
-        torch.xpu.empty_cache()
-        print(f"\n✅ Epoch {epoch+1:02d} | Loss: {loss.item():.4f}")
+        # End of Epoch Maintenance
         torch.save(model.state_dict(), "advanced_lab_model.pth")
+        torch.xpu.empty_cache() # Force internal clear
+        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f}")
 
 if __name__ == "__main__":
     train()
