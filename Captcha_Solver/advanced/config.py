@@ -1,19 +1,24 @@
 import string
 
 # --- Dataset Settings ---
-# We are moving to 40k unique images with 0 augmentations
-DATASET_SIZE = 40000 
+# 20k is the "Goldilocks" zone for 16GB RAM: enough variety, fits in memory.
+DATASET_SIZE = 20000 
 CAPTCHA_LENGTH = 6
 CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
 WIDTH = 200
 HEIGHT = 80
 
 # --- Training Hyperparameters ---
-# Dropping Batch Size to 16 to prevent the "16,000s" disk-swapping spikes
-BATCH_SIZE = 16 
-# Increased Learning Rate to force the model off the 4.12 loss floor
-LEARNING_RATE = 0.004 
-EPOCHS = 35
+# Small batches (32) provide "noisy" gradients which help escape mode collapse.
+# It also keeps the XPU memory pressure low.
+BATCH_SIZE = 32
+
+# Aggressive Learning Rate to kick the model off the 4.12 floor.
+# We use 0.001 (1e-3) as a stable breakout start point.
+LEARNING_RATE = 0.001
+
+# 50 Epochs is the target for a meaningful descent curve.
+EPOCHS = 50
 
 # --- Hardware Settings ---
 DEVICE = "xpu"  # Targeted for Intel Xe2 iGPU
