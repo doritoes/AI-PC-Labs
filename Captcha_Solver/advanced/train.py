@@ -23,11 +23,9 @@ class CaptchaDataset(Dataset):
         print(f"📦 BREAKOUT MODE: Pre-loading {size} images into RAM...")
         for i in range(size):
             target_text = ''.join(np.random.choice(list(self.chars), self.length))
-            # Generate and convert to grayscale
             img = self.generator.generate_image(target_text).convert('L')
             img_tensor = transforms.ToTensor()(img)
             
-            # One-hot encoding for the target
             target = torch.zeros(self.length, len(self.chars))
             for i_char, char in enumerate(target_text):
                 target[i_char, self.chars.find(char)] = 1
@@ -48,37 +46,21 @@ def format_seconds(seconds):
     return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
 
 def train():
-    # Ensure fresh start by checking if user wants to delete old weights
-    if os.path.exists("advanced_lab_model.pth"):
-        print("⚠️ Found old weights. For a true BREAKOUT, consider deleting 'advanced_lab_model.pth' first.")
-
-    # Initialize Dataset and Loader
     dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
-    dataloader = DataLoader(
-        dataset, 
-        batch_size=config.BATCH_SIZE, 
-        shuffle=True, 
-        num_workers=0, 
-        pin_memory=True
-    )
+    dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
 
     device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
     
-    # Load weights only if they exist
     if os.path.exists("advanced_lab_model.pth"):
         model.load_state_dict(torch.load("advanced_lab_model.pth", map_location=device))
         print("🔄 Resuming from checkpoint...")
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
-    
-    # scheduler to manage the learning rate curve
     scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, 
-        max_lr=config.LEARNING_RATE, 
-        steps_per_epoch=len(dataloader), 
-        epochs=config.EPOCHS
+        optimizer, max_lr=config.LEARNING_RATE, 
+        steps_per_epoch=len(dataloader), epochs=config.EPOCHS
     )
 
     print(f"🚀 Active | Device: {config.DEVICE} | Started At: {START_TIME.strftime('%H:%M:%S')}")
@@ -92,29 +74,27 @@ def train():
             
             optimizer.zero_grad()
             outputs = model(images)
-            
-            # Reshape for CrossEntropy: (Batch * Length, Num_Chars)
-            loss = criterion(
-                outputs.view(-1, len(config.CHARS)), 
-                labels.view(-1, len(config.CHARS)).argmax(dim=1)
-            )
-            
+            loss = criterion(outputs.view(-1, len(config.CHARS)), labels.view(-1, len(config.CHARS)).argmax(dim=1))
             loss.backward()
             optimizer.step()
             scheduler.step()
             
-            if i % 20 == 0:
+            if i % 10 == 0:
                 now = datetime.now()
                 total_str = format_seconds((now - START_TIME).total_seconds())
                 epoch_elapsed = (now - epoch_start_time).total_seconds()
+                
+                # Calculate speed and ETA
                 it_per_sec = (i + 1) / epoch_elapsed if epoch_elapsed > 0 else 0
+                remaining_its = len(dataloader) - (i + 1)
+                eta_seconds = remaining_its / it_per_sec if it_per_sec > 0 else 0
+                eta_str = f"{int(eta_seconds // 60):02d}:{int(eta_seconds % 60):02d}"
                 
                 progress = ((i + 1) / len(dataloader)) * 100
-                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | Total: {total_str}        ", end='\r')
+                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {eta_str} | Total: {total_str}        ", end='\r')
 
-        # End of Epoch Maintenance
         torch.save(model.state_dict(), "advanced_lab_model.pth")
-        torch.xpu.empty_cache() # Force internal clear
+        torch.xpu.empty_cache()
         print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f}")
 
 if __name__ == "__main__":
