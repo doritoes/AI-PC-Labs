@@ -1,17 +1,17 @@
 import os
+import time
 import json
 import csv
 import re
 import string
 import openvino_genai as ov_genai
 
-# 1. Driver/Memory Stability Flags
+# --- CRITICAL HARDWARE FLAGS ---
 os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
-# Force the NPU to use a more stable memory allocation path for MatMul
-os.environ["OV_NPU_USE_SRAM"] = "0" 
 
 def check_password_complexity(pwd):
-    if len(pwd) < 8: return False
+    """Validation for 8+ chars and 3 of 4 classes."""
+    if not pwd or len(pwd) < 8: return False
     categories = [
         any(c.islower() for c in pwd),
         any(c.isupper() for c in pwd),
@@ -20,58 +20,81 @@ def check_password_complexity(pwd):
     ]
     return sum(categories) >= 3
 
-def run_validated_batch(count=100):
+def format_persona_prompt():
+    """Builds the persona-specific query."""
+    system_msg = "You are a creative identity generator. You must output only raw JSON."
+    user_query = (
+        "Generate a unique persona with name, city, birthdate, zodiac, job, "
+        "and three passwords (personal_email, work_pc, banking). "
+        "The work_pc password MUST have 8+ characters and use 3 of 4 character types "
+        "(Uppercase, Lowercase, Numbers, Symbols)."
+    )
+    return f"<|im_start|>system\n{system_msg}<|im_end|>\n<|im_start|>user\n{user_query}<|im_end|>\n<|im_start|>assistant\n"
+
+def run_persona_generation(total_count=100):
     model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
-    
-    # 2. Optimized Config for NPU stability on AI-PC
-    # We set PREFILL_HINT to STATIC and reduce prompt length to avoid MatMul map errors
+    cache_dir = os.path.join(os.getcwd(), 'npu_cache')
+    output_file = "npu_personas.json"
+
+    # Configuration identical to your working test script
     pipeline_config = {
-        "MAX_PROMPT_LEN": 512,      # Reduced from 1024 for stability
-        "MIN_RESPONSE_LEN": 1,
+        "MAX_PROMPT_LEN": 1024,
+        "MIN_RESPONSE_LEN": 128,
         "PREFILL_HINT": "STATIC",
-        "PERFORMANCE_HINT": "LATENCY"
+        "GENERATE_HINT": "BEST_PERF",
+        "PERFORMANCE_HINT": "LATENCY",
+        "CACHE_DIR": cache_dir
     }
 
+    print(f"Initializing NPU Pipeline for {total_count} personas...")
     try:
-        # If NPU continues to fail, change "NPU" to "AUTO" or "CPU" to verify model integrity
         pipe = ov_genai.LLMPipeline(model_path, "NPU", **pipeline_config)
-    except RuntimeError as e:
-        print(f"NPU Error: {e}")
-        print("Switching to CPU for this run...")
-        pipe = ov_genai.LLMPipeline(model_path, "CPU")
+    except Exception as e:
+        print(f"Initial NPU Error: {e}")
+        return
 
     results = []
 
-    for i in range(count):
+    for i in range(total_count):
         valid_entry = False
         attempts = 0
-
+        
         while not valid_entry and attempts < 5:
-            # Shortened prompt to reduce memory footprint on NPU
-            prompt = "<|im_start|>user\nGenerate persona: {name, age, city, job, fav_animal, password_work(8+ chars, 3 of 4 types)}. Return JSON.<|im_end|>\n<|im_start|>assistant\n"
+            attempts += 1
+            full_response = ""
+            
+            # Use your proven streamer logic
+            def streamer(subword):
+                nonlocal full_response
+                full_response += subword
+                return ov_genai.StreamingStatus.RUNNING
+
+            print(f"[{i+1}/{total_count}] Generating (Attempt {attempts})...", end="\r")
             
             try:
-                response = pipe.generate(prompt, max_new_tokens=256)
-                # Cleaning response for JSON parser
-                clean_json = re.search(r'\{.*\}', response.strip(), re.DOTALL)
-                if not clean_json:
-                    raise ValueError("No JSON found")
+                # Direct generate call using your verified method
+                pipe.generate(format_persona_prompt(), max_new_tokens=512, streamer=streamer, do_sample=True, temperature=0.8)
                 
-                data = json.loads(clean_json.group(0))
-                work_pwd = data.get("password_work", "")
-
-                if check_password_complexity(work_pwd):
-                    results.append(data)
-                    valid_entry = True
-                    print(f"[{i+1}/{count}] Success: {data['name']}")
-                else:
-                    attempts += 1
+                # Extract JSON block
+                json_match = re.search(r'\{.*\}', full_response.replace('\n', ' '), re.DOTALL)
+                if json_match:
+                    data = json.loads(json_match.group(0))
+                    work_pwd = data.get("work_pc", "")
+                    
+                    if check_password_complexity(work_pwd):
+                        results.append(data)
+                        valid_entry = True
+                        print(f"[{i+1}/{total_count}] Success: {data.get('name')}")
+                        # Incremental save
+                        with open(output_file, "w") as f:
+                            json.dump(results, f, indent=4)
+                    else:
+                        continue # Password didn't meet complexity
             except Exception as e:
-                attempts += 1
-                print(f"Attempt {attempts} failed: {e}")
+                print(f"\nStream Error: {e}")
+                time.sleep(1)
 
-    with open("validated_identities.json", "w") as f:
-        json.dump(results, f, indent=4)
+    print(f"\nFinished! Results saved to {output_file}")
 
 if __name__ == "__main__":
-    run_validated_batch(5)
+    run_persona_generation(100)
