@@ -1,8 +1,9 @@
-import random
-import string
-from passlib.hash import sha512_crypt, nthash
+"""
+Create example shadow files and pwdump files for testing
 
-""" pip install passlib"""
+pip install passlib
+"""
+from passlib.hash import sha512_crypt, nthash
 
 # Input Data
 data = [
@@ -19,6 +20,7 @@ data = [
 ]
 
 def generate_shadow_line(user, password):
+    """ create example shadow file line """
     # Passlib handles the rounds and salt generation automatically
     # Ubuntu 24.04 uses 656,000 rounds by default, but standard $6$ works fine for testing
     shadow_hash = sha512_crypt.hash(password)
