@@ -1,7 +1,8 @@
-import hashlib
-import crypt
 import random
 import string
+from passlib.hash import sha512_crypt, nthash
+
+""" pip install passlib"""
 
 # Input Data
 data = [
@@ -18,21 +19,14 @@ data = [
 ]
 
 def generate_shadow_line(user, password):
-    # Salt for SHA-512 ($6$) consists of 8-16 random alphanumeric characters
-    salt_charset = string.ascii_letters + string.digits
-    salt = ''.join(random.choice(salt_charset) for _ in range(16))
-    shadow_hash = crypt.crypt(password, f"$6${salt}")
-    # Format: user:hash:last_change:min:max:warn:inactive:expire
+    # Passlib handles the rounds and salt generation automatically
+    # Ubuntu 24.04 uses 656,000 rounds by default, but standard $6$ works fine for testing
+    shadow_hash = sha512_crypt.hash(password)
     return f"{user.lower()}:{shadow_hash}:20386:0:99999:7:::"
 
-def generate_ntlm_hash(password):
-    # NTLM is MD4(UTF-16-LE(password))
-    hash_obj = hashlib.new('md4', password.encode('utf-16le'))
-    return hash_obj.hexdigest().upper()
-
 def generate_pwdump_line(user, password, uid):
-    ntlm = generate_ntlm_hash(password)
-    # Format: user:uid:lm_hash:ntlm_hash:::
+    # nthash is the library's implementation of NTLM
+    ntlm = nthash.hash(password).upper()
     lm_empty = "aad3b435b51404eeaad3b435b51404ee"
     return f"{user}:{uid}:{lm_empty}:{ntlm}:::"
 
