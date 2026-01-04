@@ -63,7 +63,18 @@ def main(file_path):
         print(f"An error occurred: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        main(sys.argv[1])
+    # Get the script name (like $0 in shell)
+    script_name = os.path.basename(sys.argv[0])
+
+    if len(sys.argv) == 2:
+        target_file = sys.argv[1]
+        
+        # Verify the file exists before starting
+        if os.path.isfile(target_file):
+            main(target_file)
+        else:
+            print(f"Error: The file '{target_file}' does not exist.")
+            sys.exit(1)
     else:
-        print("Usage: python script.py passwords.txt")
+        print(f"Usage: python {script_name} <password_file.txt>")
+        sys.exit(1)
