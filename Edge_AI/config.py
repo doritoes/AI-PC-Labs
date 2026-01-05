@@ -1,12 +1,8 @@
 import os
 
-# NPU Environment Flags
 os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
-
-# Model Path
 MODEL_PATH = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
 
-# NPU Pipeline Configuration
 NPU_CONFIG = {
     "MAX_PROMPT_LEN": 1024,
     "PREFILL_HINT": "STATIC",
