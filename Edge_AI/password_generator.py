@@ -1,89 +1,100 @@
+import os
 import json
 import re
 import random
 import time
 from datetime import datetime, timedelta
 import openvino_genai as ov_genai
-from config import MODEL_PATH, NPU_CONFIG
+
+# --- HARDWARE INITIALIZATION ---
+os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
+MODEL_PATH = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
+
+def get_pipe():
+    config = {
+        "MAX_PROMPT_LEN": 1024, "PREFILL_HINT": "STATIC",
+        "GENERATE_HINT": "BEST_PERF", "PERFORMANCE_HINT": "LATENCY",
+        "CACHE_DIR": "npu_cache"
+    }
+    return ov_genai.LLMPipeline(MODEL_PATH, "NPU", **config)
 
 def generate_random_birthdate():
     days_ago = random.randint(365*20, 365*65)
     return (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
 
-def parse_persona_text(text):
-    """Extracts data from natural language if JSON fails."""
-    # Look for patterns like Name: [Name], Email Pwd: [Pwd], etc.
-    name = re.search(r"Name:\s*(.*)", text)
-    logic = re.search(r"Logic:\s*(.*)", text)
-    email = re.search(r"Email Pwd:\s*(\S+)", text)
-    work = re.search(r"Work Pwd:\s*(\S+)", text)
-    
-    if name and email and work:
-        return {
-            "name": name.group(1).strip(),
-            "logic_note": logic.group(1).strip() if logic else "N/A",
-            "email_pwd": email.group(1).strip(),
-            "work_pwd": work.group(1).strip()
-        }
-    return None
+# --- PHASE 1: BOOTSTRAP DATA BANKS ---
+# We use the model to create the variety it will later use
+NAME_BANK = ["Marcus Rossi", "Elena Vance", "Kenji Tanaka", "Amara Okafor", "Sanya Gupta", "Lars Muller"]
+JOB_BANK = ["Car Detailer", "Dental Hygienist", "High-Rise Welder", "Pastry Chef", "Actuary", "Crane Operator"]
+INTEREST_BANK = ["Fly Fishing", "Mechanical Keyboards", "Urban Gardening", "Bonsai", "Retro Gaming"]
+LOC_BANK = ["Rochester, NY", "Berlin, Germany", "Tokyo, Japan", "Mumbai, India", "Sydney, Australia"]
 
-def run_npu_human_study(total_count=100):
-    print("--- INITIALIZING NPU ---")
-    pipe = ov_genai.LLMPipeline(MODEL_PATH, "NPU", **NPU_CONFIG)
-
+def run_human_study(total_count=100):
+    pipe = get_pipe()
     results = []
     attempts = 0
     start_time = time.time()
-    
-    jobs = ["Chef", "Pilot", "Nurse", "Architect", "Scientist", "Teacher"]
 
-    print(f"--- STARTING ROBUST TEXT-PARSED STUDY: {total_count} SAMPLES ---")
+    print(f"--- STARTING ISOLATED BEHAVIORAL SESSIONS: {total_count} ---")
 
     while len(results) < total_count:
         attempts += 1
-        job = random.choice(jobs)
-        dob = generate_random_birthdate()
         
+        # 1. Select fresh variables from our bank
+        name = random.choice(NAME_BANK)
+        job = random.choice(JOB_BANK)
+        loc = random.choice(LOC_BANK)
+        interest = random.choice(INTEREST_BANK)
+        dob = generate_random_birthdate()
+
+        # 2. ISOLATED PROMPT (The "Clean Room" approach)
+        # We don't mention JSON until the very end to keep the 'Acting' high-quality
+        prompt = (
+            f"<|im_start|>system\nYou are a Behavioral Cybersecurity Analyst.<|im_end|>\n"
+            f"<|im_start|>user\nAct as {name}, a {job} living in {loc}. You love {interest}.\n"
+            f"Describe your hobby briefly, then create a lazy email password based on it, "
+            f"and a work password that is a leetspeak version of a professional tool you use.\n"
+            f"Respond ONLY in this JSON format:\n"
+            f"{{\"name\": \"{name}\", \"hobby_narrative\": \"...\", \"email_pwd\": \"...\", \"work_pwd\": \"...\"}}<|im_end|>\n"
+            f"<|im_start|>assistant\n{{"
+        )
+
         full_response = ""
         def streamer(subword):
             nonlocal full_response
             full_response += subword
             return ov_genai.StreamingStatus.RUNNING
 
-        # TEXT-BASED PROMPT: Easier for NPU than JSON
-        prompt = (
-            f"<|im_start|>system\nYou are a profiler. Speak naturally. Use this format:\n"
-            f"Name: [Full Name]\nLogic: [Why they chose these]\nEmail Pwd: [Hobby password]\nWork Pwd: [Career password]<|im_end|>\n"
-            f"<|im_start|>user\nProfile a {job} born {dob}.<|im_end|>\n"
-            f"<|im_start|>assistant\nName:"
-        )
-
         try:
+            # Efficiency tracking
             eff = (len(results) / attempts) * 100 if attempts > 0 else 0
-            print(f"[{len(results)+1}/{total_count}] Eff: {eff:.1f}% | Mode: {job}...".ljust(65), end="\r")
+            print(f"[{len(results)+1}/{total_count}] Eff: {eff:.1f}% | {name} ({job})...".ljust(65), end="\r")
+
+            # Generate with a fresh state
+            pipe.generate(prompt, max_new_tokens=300, streamer=streamer, do_sample=True, temperature=0.85)
             
-            # Shorter token limit to prevent infinite loops
-            pipe.generate(prompt, max_new_tokens=200, streamer=streamer, do_sample=True, temperature=0.8)
+            # 3. PARSE
+            raw = "{" + full_response.strip()
+            if not raw.endswith("}"): raw += "}"
             
-            # Attempt to parse the text output
-            data = parse_persona_text("Name:" + full_response)
-            
-            if data:
-                # Basic 'Human' check (No QWERTY)
-                if not any(x in data["work_pwd"].lower() for x in ["qwerty", "asdf"]):
-                    data["job"], data["dob"] = job, dob
+            match = re.search(r'(\{.*\})', raw.replace('\n', ' '), re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+                
+                # Validation: Reject if it's just repeating the prompt labels
+                if "..." not in data["hobby_narrative"] and len(data["work_pwd"]) > 4:
+                    data["meta"] = {"job": job, "location": loc, "dob": dob}
                     results.append(data)
                     
-                    print(f"[{len(results)}/{total_count}] ✅ {data['name'][:12].ljust(12)} | Work: {data['work_pwd']}")
-                    print(f"      Logic: {data['logic_note'][:55]}...")
+                    print(f"[{len(results)}/{total_count}] ✅ {name.ljust(15)} | PWD: {data['work_pwd']}")
                     
                     if len(results) % 5 == 0:
-                        with open("robust_human_study.json", "w") as f:
+                        with open("isolated_human_study.json", "w") as f:
                             json.dump(results, f, indent=4)
-        except Exception as e:
+        except Exception:
             continue
 
-    print(f"\nSUCCESS: 100 Samples in {time.time()-start_time:.1f}s")
+    print(f"\nSUCCESS: {len(results)} Identities saved.")
 
 if __name__ == "__main__":
-    run_npu_human_study(100)
+    run_human_study(100)
