@@ -24,6 +24,7 @@ In this step we install the bridge between Python and your Intel NPU.
     - `pip install openvino-genai==2025.4.1`
         - NOTE 'openvino-genai' is specifically designed for LLMs on the NPU
     - `pip install opencv-python`
+    - `pip install huggingface_hub`
 
 ## Test
 1. Create the NPU verification script `verify_npu.py`

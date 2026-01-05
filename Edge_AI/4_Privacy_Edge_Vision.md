@@ -37,8 +37,8 @@ The XML file is the blueprint or structure. The BIN file is the brains, the weig
 This script manages two different NPU "inference requests" in a single loop.
 
 1. Plug in your webcam
-2. Copy the script [smart_privacy_npu.py][smart_privacy_npu.py]
-3. `python3 smart_privacy_npu.py`
+2. Copy the script [smart_privacy_npu.py](smart_privacy_npu.py)
+3. `python smart_privacy_npu.py`
 4. Test detection of various office objects (some work better than others)
     - person
     - chair
