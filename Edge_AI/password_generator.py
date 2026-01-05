@@ -1,102 +1,85 @@
-import os
 import json
 import re
-import string
+import random
 import time
+from datetime import datetime, timedelta
 import openvino_genai as ov_genai
+from config import MODEL_PATH, NPU_CONFIG
 
-# --- 1. HARDWARE CONFIG ---
-os.environ["DISABLE_OPENVINO_GENAI_NPU_L0"] = "1"
+def generate_random_birthdate():
+    days_ago = random.randint(365*20, 365*65)
+    return (datetime.now() - timedelta(days=days_ago)).strftime("%Y-%m-%d")
 
-def repair_json_light(raw_text):
-    """Fixes common LLM JSON errors like trailing commas or missing braces."""
+def run_npu_study(total_count=100):
+    print("--- INITIALIZING NPU ---")
     try:
-        # Extract the core JSON block
-        match = re.search(r'(\{.*\})', raw_text.replace('\n', ' '), re.DOTALL)
-        if not match:
-            return None
-        json_str = match.group(1).strip()
-        # Fix trailing commas: {"a": 1, } -> {"a": 1}
-        json_str = re.sub(r',\s*\}', '}', json_str)
-        return json.loads(json_str)
-    except:
-        return None
-
-def check_password_complexity(pwd):
-    """Validation for 8+ chars and 3 of 4 classes."""
-    if not pwd or len(pwd) < 8: return False
-    categories = [
-        any(c.islower() for c in pwd),
-        any(c.isupper() for c in pwd),
-        any(c.isdigit() for c in pwd),
-        any(not c.isalnum() for c in pwd)
-    ]
-    return sum(categories) >= 3
-
-def run_npu_persona_batch(total_count=100):
-    model_path = os.path.join(os.environ['USERPROFILE'], 'Edge-AI', 'models', 'qwen-1.5b')
-    cache_dir = os.path.join(os.getcwd(), 'npu_cache')
-    output_file = "npu_personas.json"
-    
-    pipeline_config = {
-        "MAX_PROMPT_LEN": 1024,
-        "MIN_RESPONSE_LEN": 128,
-        "PREFILL_HINT": "STATIC",
-        "GENERATE_HINT": "BEST_PERF",
-        "PERFORMANCE_HINT": "LATENCY",
-        "CACHE_DIR": cache_dir
-    }
-
-    print(f"--- INITIALIZING NPU ({total_count} Personas) ---")
-    try:
-        pipe = ov_genai.LLMPipeline(model_path, "NPU", **pipeline_config)
+        pipe = ov_genai.LLMPipeline(MODEL_PATH, "NPU", **NPU_CONFIG)
     except Exception as e:
-        print(f"FAILED TO LOAD NPU: {e}")
+        print(f"Hardware Error: {e}")
         return
 
     results = []
+    attempts = 0
+    start_time = time.time()
     
+    # Study Variables
+    locs = ["London", "Tokyo", "Berlin", "New York", "Paris", "Sydney"]
+    jobs = ["Chef", "Pilot", "Nurse", "Architect", "Scientist", "Teacher"]
+
+    print(f"--- STARTING BATCH: {total_count} SAMPLES ---")
+
     while len(results) < total_count:
-        full_response = "{" 
+        attempts += 1
+        loc, job = random.choice(locs), random.choice(jobs)
+        dob = generate_random_birthdate()
         
+        full_response = ""
         def streamer(subword):
             nonlocal full_response
             full_response += subword
             return ov_genai.StreamingStatus.RUNNING
 
-        # Included all your requested fields in the prompt
+        # FEW-SHOT PROMPT: Showing the model exactly how a human thinks
         prompt = (
-            "<|im_start|>system\nYou are a JSON generator. No chat.<|im_end|>\n"
-            "<|im_start|>user\nGenerate a persona with: name, city, birthdate, zodiac, address, "
-            "transportation, blood_type, hair_color, eye_color, height, weight, religion, "
-            "fav_vacation_spot, fav_season, fav_animal, best_friend, birthplace, "
-            "personal_email_pwd, work_pc_pwd, banking_pwd. "
-            "The 'work_pc_pwd' MUST be 8+ chars with 3 of 4 character types.<|im_end|>\n"
-            "<|im_start|>assistant\n{"
+            f"<|im_start|>system\nYou are a profile generator. Output ONLY JSON.\n"
+            f"Example:\n"
+            f"User: Architect in London.\n"
+            f"Assistant: {{\"name\": \"James Miller\", \"logic\": \"Loves cycling, but uses CAD tools at work.\", \"email_pwd\": \"RedBike88\", \"work_pwd\": \"Sk3tchUp!2024\"}}<|im_end|>\n"
+            f"<|im_start|>user\nCreate a persona for a {job} in {loc}.<|im_end|>\n"
+            f"<|im_start|>assistant\n{{\"name\":"
         )
 
         try:
-            # Correctly indented block
-            pipe.generate(prompt, max_new_tokens=1024, streamer=streamer, do_sample=True, temperature=0.8)
+            eff = (len(results) / attempts) * 100 if attempts > 0 else 0
+            print(f"[{len(results)+1}/{total_count}] Eff: {eff:.1f}% | Task: {job}...".ljust(60), end="\r")
             
-            data = repair_json_light(full_response)
+            # Use temperature 0.7 for a balance of creativity and structure
+            pipe.generate(prompt, max_new_tokens=256, streamer=streamer, do_sample=True, temperature=0.7)
             
-            if data and check_password_complexity(data.get("work_pc_pwd", "")):
-                results.append(data)
-                print(f"[{len(results)}/{total_count}] Generated: {data.get('name')}")
+            # Parse and clean
+            raw = "{\"name\":" + full_response.strip()
+            if not raw.endswith("}"): raw += "}"
+            
+            # Find the JSON block
+            match = re.search(r'(\{.*\})', raw.replace('\n', ' '), re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
                 
-                # Save progress every 2 items
-                if len(results) % 2 == 0:
-                    with open(output_file, "w") as f:
-                        json.dump(results, f, indent=4)
-            else:
-                print(f"Attempt failed validation or JSON was malformed. Retrying...")
-                
-        except Exception as e:
-            print(f"Inference error: {e}")
-            time.sleep(1)
+                # Validation: Ensure all 3 human fields exist
+                if all(k in data for k in ["name", "email_pwd", "work_pwd"]):
+                    data["job"], data["city"], data["dob"] = job, loc, dob
+                    results.append(data)
+                    
+                    # Log the human-like result
+                    print(f"[{len(results)}/{total_count}] ✅ {data['name'][:12].ljust(12)} | Email: {data['email_pwd'].ljust(12)} | Work: {data['work_pwd']}")
+                    
+                    if len(results) % 5 == 0:
+                        with open("human_passwords_final.json", "w") as f:
+                            json.dump(results, f, indent=4)
+        except Exception:
+            continue
 
-    print(f"\nDONE! {len(results)} personas saved to {output_file}")
+    print(f"\nSUCCESS: 100 personas saved in {time.time()-start_time:.1f}s")
 
 if __name__ == "__main__":
-    run_npu_persona_batch(100)
+    run_npu_study(100)
