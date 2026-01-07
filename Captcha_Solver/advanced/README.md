@@ -5,10 +5,10 @@ To handle this, we will leverage the Intel GPU (iGPU) on the Arrow Lake chip usi
 - Much faster for training than the CPU alone (iGPU has hundreds of execution units/EUs compare to 20 CPU threads)
 - Use CPU to generate training data images, and allow iGPU to train the model
   - This means infinite training data! We use half the CPU cores at the start of the epoch to generate fresh CAPTHAS
-- Includes learning speed managment (monitors validation loss, when to slow down and fine type, and stops early to prevent over-training)
+- Includes learning speed management (monitors validation loss, when to slow down and fine type, and stops early to prevent over-training)
 - `train.py` is cable of resuming training on the results of the last epoch
 - Increasing game to solve 100 in 10 seconds
-- Disable Intel Wolf Secruity protections during the training run
+- Disable Intel Wolf Security protections during the training run
 
 Heavily tuned for this hardware
 - Tuned dataset size and batch size
@@ -25,7 +25,7 @@ WARNINGS :warning:
 - :warning: You are entering dependency hell. The following was tested on this specific environment at the time of writing.
 - :warning: This is running on the very edge of RAM. You NEED to close out all apps when you are training.
   - If memory utilization goes over 91%, find something to close
-  - If the Eposh time goes too high, check memory
+  - If the Epoch time goes too high, check memory
   - If you there is a lot of SSD disk activity, you are swapping memory. Reduce your RAM usage.
   - See [Optimize for Training](Optimize_For_Training.md) for steps to clean up
     - First debloat Windows 11
@@ -70,7 +70,7 @@ WARNINGS :warning:
      - Let it cook! The iGPU is a beast.
      - Phases
          - Foundation (Epochs 1-5) Loss drops steadily. Accuracy stays at 0% or very low (<1%)
-         - Breakthough (Epochs 6-15) Accuracy begins to "pop" (e.g., 5% > 20% > 50%)
+         - Breakthrough (Epochs 6-15) Accuracy begins to "pop" (e.g., 5% > 20% > 50%)
          - Refinement (Epochs 16-30) Loss flattens. Accuracy climbs toward 90%+
 12. Convert and Quantize
      - `python convert.py`
