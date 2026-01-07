@@ -1,19 +1,19 @@
 import string
+import torch
 
-# --- Dataset Settings ---
-DATASET_SIZE = 6000 
-CAPTCHA_LENGTH = 6
-# Keep the full set here so the model architecture creates all 62 output nodes
+# --- Sector Definitions ---
+DIGITS = string.digits
+# Use your original definition for CHARS to ensure the order matches
 CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
+
+# --- Captcha Dimensions (RESTORED TO YOUR ORIGINALS) ---
 WIDTH = 200
 HEIGHT = 80
+CAPTCHA_LENGTH = 6
 
-# --- Training Hyperparameters ---
+# --- Training Constants ---
 BATCH_SIZE = 16
-# Increased slightly to help the model "jump" during the Digits phase
-LEARNING_RATE = 0.002 
-# 50 Epochs total (5 Digits + 45 Full Alphanumeric)
-EPOCHS = 50
-
-# --- Hardware Settings ---
 DEVICE = "xpu"
+
+# This ensures the model output layer matches our character set (62)
+NUM_CLASSES = len(CHARS)
