@@ -11,9 +11,9 @@ import config
 from model import AdvancedCaptchaModel
 
 # --- CURRICULUM PARAMETERS ---
-STAGE_1_EPOCHS = 20  # DIGITS ONLY (Anchor Phase)
-STAGE_2_EPOCHS = 40  # FULL ALPHANUM (Generalization Phase)
-DYNAMIC_RATIO = 0.30 # 30% Fresh images per batch in Stage 2
+STAGE_1_EPOCHS = 20  
+STAGE_2_EPOCHS = 40  
+DYNAMIC_RATIO = 0.30 
 BATCH_SIZE = config.BATCH_SIZE
 
 class CurriculumDataset(Dataset):
@@ -42,9 +42,7 @@ class CurriculumDataset(Dataset):
         return self.buffer_size
 
     def __getitem__(self, idx):
-        # 30% Dynamic Injection logic only active in Stage 2
         is_dynamic = (self.mode == 'full' and np.random.random() < DYNAMIC_RATIO)
-        
         if is_dynamic:
             text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
             img = self.generator.generate_image(text).convert('L')
@@ -63,20 +61,19 @@ def train():
     criterion = nn.MultiLabelSoftMarginLoss()
     optimizer = optim.AdamW(model.parameters(), lr=0.001)
     
-    print("\n" + "="*70)
+    print("\n" + "="*75)
     print(f"🎓 LAB COMMENCED | Device: {config.DEVICE}")
     print(f"📡 Plan: {STAGE_1_EPOCHS} Epochs (Digits) -> {STAGE_2_EPOCHS} Epochs (Hybrid)")
     print(f"📦 Resolution: {config.WIDTH}x{config.HEIGHT} | Batch Size: {BATCH_SIZE}")
-    print("="*70)
+    print("="*75)
 
     dataset = CurriculumDataset(mode='digits')
     
     for epoch in range(1, STAGE_1_EPOCHS + STAGE_2_EPOCHS + 1):
-        # --- Stage Transition ---
         if epoch == STAGE_1_EPOCHS + 1:
-            print("\n" + "!"*70)
+            print("\n" + "!"*75)
             print("🚀 CURRICULUM UPGRADE: Switching to Full Alphanumeric + 30% Hybrid")
-            print("!"*70)
+            print("!"*75)
             dataset = CurriculumDataset(mode='full')
             for param_group in optimizer.param_groups:
                 param_group['lr'] = 0.0005 
@@ -99,19 +96,24 @@ def train():
             
             epoch_loss += loss.item()
             
-            # Character-Level Accuracy Calculation
             out_reshaped = output.view(-1, 6, 62).argmax(2)
             tar_reshaped = target.view(-1, 6, 62).argmax(2)
             correct += (out_reshaped == tar_reshaped).sum().item()
             total += tar_reshaped.numel()
 
-            # --- LIVE SPEEDOMETER HUD ---
+            # --- UPDATED SPEEDOMETER HUD ---
             if batch_idx % 5 == 0 or batch_idx == num_batches - 1:
                 elapsed = time.time() - start_time
-                it_per_sec = (batch_idx + 1) / elapsed
+                it_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
                 current_acc = (correct / total) * 100
                 progress = ((batch_idx + 1) / num_batches) * 100
-                print(f"\r  ⚡ [Ep {epoch:02d}] {progress:3.0f}% | Acc: {current_acc:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s", end="")
+                
+                # Using fixed-width formatting to ensure it/s is always visible
+                status = (f"\r  ⚡ [Ep {epoch:02d}] {progress:3.0f}% | "
+                          f"Acc: {current_acc:5.1f}% | "
+                          f"Loss: {loss.item():.4f} | "
+                          f"Speed: {it_per_sec:.2f} it/s    ")
+                print(status, end="", flush=True)
 
         avg_loss = epoch_loss / num_batches
         final_acc = (correct / total) * 100
