@@ -1,6 +1,7 @@
 """
 Benchmark the advanced_lab_model.pth performance and speed.
 """
+import os
 import time
 import torch
 import numpy as np
@@ -8,12 +9,12 @@ from torchvision import transforms
 from captcha.image import ImageCaptcha
 import config
 from model import AdvancedCaptchaModel
-import os
 
 def benchmark(num_samples=1000):
+    """ run the benchmark process """
     device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
-    
+
     # Load Weights
     if os.path.exists("advanced_lab_model.pth"):
         try:
@@ -28,9 +29,9 @@ def benchmark(num_samples=1000):
 
     model.eval()
     generator = ImageCaptcha(width=config.WIDTH, height=config.HEIGHT)
-    
+
     print(f"🚀 Starting Benchmark: {num_samples} samples on {config.DEVICE}...")
-    
+
     correct_full = 0
     start_time = time.time()
 
@@ -39,13 +40,13 @@ def benchmark(num_samples=1000):
             # 1. Generate
             real_text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
             img = generator.generate_image(real_text).convert('L')
-            
+
             # 2. Pre-process
             img_tensor = transforms.ToTensor()(img).unsqueeze(0).to(device)
-            
+
             # 3. Predict
             output = model(img_tensor)
-            
+
             # 4. Decode
             out_reshaped = output.view(-1, 6, 62)
             indices = torch.argmax(out_reshaped, dim=2)
@@ -53,13 +54,13 @@ def benchmark(num_samples=1000):
 
             if real_text == pred_text:
                 correct_full += 1
-            
+
             if (i + 1) % 100 == 0:
                 print(f"Processed: {i + 1}/{num_samples}...")
 
     end_time = time.time()
     total_time = end_time - start_time
-    
+
     # Metrics calculation
     solve_rate = (correct_full / num_samples) * 100
     avg_latency = (total_time / num_samples) * 1000 # in ms
