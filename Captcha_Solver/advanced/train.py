@@ -60,11 +60,13 @@ def train():
     criterion = nn.MultiLabelSoftMarginLoss() 
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE, weight_decay=0.01)
     
-    print("\n" + "="*80)
+    # 80-character header
+    header_line = "="*80
+    print("\n" + header_line)
     print(f"🎓 LAB COMMENCED | Device: {config.DEVICE}")
     print(f"📡 Curriculum: {STAGE_1_EPOCHS} Ep (Digits) -> {STAGE_2_EPOCHS} Ep (Alphanum)")
     print(f"🧪 Hardening: Perspective Warp + 40% Hybrid Injection")
-    print("="*80)
+    print(header_line)
 
     dataset = HardenedDataset(mode='digits')
     
@@ -98,12 +100,19 @@ def train():
             correct += (out_reshaped == tar_reshaped).sum().item()
             total += tar_reshaped.numel()
 
-            if batch_idx % 5 == 0 or batch_idx == num_batches - 1:
+            if batch_idx % 2 == 0 or batch_idx == num_batches - 1:
                 elapsed = time.time() - start_time
                 it_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
                 acc = (correct / total) * 100
-                # RESTORED HUD STRING:
-                print(f"\r  ⚡ [Ep {epoch:02d}] Acc: {acc:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s   ", end="", flush=True)
+                percent = ((batch_idx + 1) / num_batches) * 100
+                
+                # --- WIDE HUD WITH PROGRESS ---
+                # This fills the space to match the header width
+                status = (f"\r  ⚡ [Ep {epoch:02d}] {percent:3.0f}% | "
+                          f"Acc: {acc:5.1f}% | "
+                          f"Loss: {loss.item():.4f} | "
+                          f"Speed: {it_per_sec:.2f} it/s  ")
+                print(status.ljust(78), end="", flush=True)
 
         avg_loss = epoch_loss / num_batches
         print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Final Acc: {(correct/total)*100:.2f}% | Time: {time.time()-start_time:.1f}s")
