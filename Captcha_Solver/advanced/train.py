@@ -6,30 +6,32 @@ from torchvision import transforms
 from captcha.image import ImageCaptcha
 import numpy as np
 import time
-import os
 import config
 from model import AdvancedCaptchaModel
 
-# --- CURRICULUM PARAMETERS ---
-STAGE_1_EPOCHS = 20  
-STAGE_2_EPOCHS = 40  
-DYNAMIC_RATIO = 0.30 
-BATCH_SIZE = config.BATCH_SIZE
+# --- HARDENING PARAMETERS ---
+STAGE_1_EPOCHS = 15  
+STAGE_2_EPOCHS = 45  
+DYNAMIC_RATIO = 0.40 
 
-class CurriculumDataset(Dataset):
+class HardenedDataset(Dataset):
     def __init__(self, mode='digits'):
         self.mode = mode
         self.generator = ImageCaptcha(width=config.WIDTH, height=config.HEIGHT)
+        
+        # Perspective shift helps the model understand "relative height" (v vs V)
         self.transform = transforms.Compose([
+            transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
             transforms.ToTensor(),
             transforms.Normalize((0.5,), (0.5,))
         ])
-        self.buffer_size = 4000 
+
+        self.buffer_size = 6000 
         self.static_data = []
         self.refresh_buffer()
 
     def refresh_buffer(self):
-        print(f"\n🔄 [DATA PREP] Generating {self.buffer_size} static {self.mode} anchors...")
+        print(f"\n🔄 [DATA PREP] Generating {self.buffer_size} {self.mode} anchors...")
         start = time.time()
         chars = config.DIGITS if self.mode == 'digits' else config.CHARS
         for _ in range(self.buffer_size):
@@ -43,6 +45,7 @@ class CurriculumDataset(Dataset):
 
     def __getitem__(self, idx):
         is_dynamic = (self.mode == 'full' and np.random.random() < DYNAMIC_RATIO)
+        
         if is_dynamic:
             text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
             img = self.generator.generate_image(text).convert('L')
@@ -58,30 +61,30 @@ class CurriculumDataset(Dataset):
 def train():
     device = torch.device(config.DEVICE)
     model = AdvancedCaptchaModel().to(device)
-    criterion = nn.MultiLabelSoftMarginLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=0.001)
+    criterion = nn.MultiLabelSoftMarginLoss() 
+    optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE, weight_decay=0.01)
     
-    print("\n" + "="*75)
-    print(f"🎓 LAB COMMENCED | Device: {config.DEVICE}")
-    print(f"📡 Plan: {STAGE_1_EPOCHS} Epochs (Digits) -> {STAGE_2_EPOCHS} Epochs (Hybrid)")
-    print(f"📦 Resolution: {config.WIDTH}x{config.HEIGHT} | Batch Size: {BATCH_SIZE}")
-    print("="*75)
+    print("\n" + "="*80)
+    print(f"🎓 HARDENED LAB | Device: {config.DEVICE}")
+    print(f"📡 Strategy: Perspective Warp + 40% Hybrid Injection")
+    print(f"📦 Vocab Size: {len(config.CHARS)} characters | Batch: {config.BATCH_SIZE}")
+    print("="*80)
 
-    dataset = CurriculumDataset(mode='digits')
+    dataset = HardenedDataset(mode='digits')
     
     for epoch in range(1, STAGE_1_EPOCHS + STAGE_2_EPOCHS + 1):
         if epoch == STAGE_1_EPOCHS + 1:
-            print("\n" + "!"*75)
-            print("🚀 CURRICULUM UPGRADE: Switching to Full Alphanumeric + 30% Hybrid")
-            print("!"*75)
-            dataset = CurriculumDataset(mode='full')
+            print("\n" + "!"*80)
+            print("🚀 UPGRADE: Switching to Full Alphanumeric Hardening")
+            print("!"*80)
+            dataset = HardenedDataset(mode='full')
             for param_group in optimizer.param_groups:
-                param_group['lr'] = 0.0005 
+                param_group['lr'] = config.LEARNING_RATE * 0.4
         
-        dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True)
+        dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True)
         model.train()
         
-        epoch_loss, correct, total = 0, 0, 0
+        epoch_loss, correct, case_correct, total = 0, 0, 0, 0
         start_time = time.time()
         num_batches = len(dataloader)
         
@@ -96,35 +99,34 @@ def train():
             
             epoch_loss += loss.item()
             
+            # --- Advanced Metrics Calculation ---
             out_reshaped = output.view(-1, 6, 62).argmax(2)
             tar_reshaped = target.view(-1, 6, 62).argmax(2)
+            
+            # Strict Accuracy
             correct += (out_reshaped == tar_reshaped).sum().item()
+            
+            # Case-Insensitive Accuracy (The "True Shape" test)
+            for b in range(out_reshaped.size(0)):
+                for c in range(out_reshaped.size(1)):
+                    p_idx, t_idx = out_reshaped[b,c].item(), tar_reshaped[b,c].item()
+                    if config.CHARS[p_idx].lower() == config.CHARS[t_idx].lower():
+                        case_correct += 1
+            
             total += tar_reshaped.numel()
 
-            # --- UPDATED SPEEDOMETER HUD ---
             if batch_idx % 5 == 0 or batch_idx == num_batches - 1:
                 elapsed = time.time() - start_time
                 it_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
-                current_acc = (correct / total) * 100
-                progress = ((batch_idx + 1) / num_batches) * 100
-                
-                # Using fixed-width formatting to ensure it/s is always visible
-                status = (f"\r  ⚡ [Ep {epoch:02d}] {progress:3.0f}% | "
-                          f"Acc: {current_acc:5.1f}% | "
-                          f"Loss: {loss.item():.4f} | "
-                          f"Speed: {it_per_sec:.2f} it/s    ")
-                print(status, end="", flush=True)
+                acc = (correct / total) * 100
+                c_acc = (case_correct / total) * 100
+                print(f"\r  ⚡ [Ep {epoch:02d}] {acc:4.1f}% (Case-Insensitive: {c_acc:4.1f}%) | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s", end="", flush=True)
 
         avg_loss = epoch_loss / num_batches
-        final_acc = (correct / total) * 100
-        phase = "DIGITS" if epoch <= STAGE_1_EPOCHS else "HYBRID"
+        print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Loss: {avg_loss:.4f} | Time: {time.time()-start_time:.1f}s")
         
-        print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Phase: {phase}")
-        print(f"   Final Acc: {final_acc:.2f}% | Avg Loss: {avg_loss:.4f} | Time: {time.time()-start_time:.1f}s")
-        
-        if epoch % 5 == 0 or epoch == (STAGE_1_EPOCHS + STAGE_2_EPOCHS):
+        if epoch % 5 == 0:
             torch.save(model.state_dict(), "advanced_lab_model.pth")
-            print(f"   💾 Checkpoint saved: advanced_lab_model.pth")
 
 if __name__ == "__main__":
     train()
