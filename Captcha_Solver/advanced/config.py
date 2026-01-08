@@ -1,19 +1,19 @@
-import string
 import torch
+import string
 
-# --- Sector Definitions ---
-DIGITS = string.digits
-# Use your original definition for CHARS to ensure the order matches
-CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
+# --- Hardware Configuration ---
+DEVICE = "xpu" if torch.xpu.is_available() else "cpu"
 
-# --- Captcha Dimensions (RESTORED TO YOUR ORIGINALS) ---
+# --- Image Specifications ---
 WIDTH = 200
 HEIGHT = 80
 CAPTCHA_LENGTH = 6
 
-# --- Training Constants ---
-BATCH_SIZE = 16
-DEVICE = "xpu"
+# --- Character Sets (The Model's Vocabulary) ---
+DIGITS = string.digits
+# 0-9 (10) + a-z (26) + A-Z (26) = 62 total classes
+CHARS = string.digits + string.ascii_lowercase + string.ascii_uppercase
 
-# This ensures the model output layer matches our character set (62)
-NUM_CLASSES = len(CHARS)
+# --- Training Hyperparameters ---
+BATCH_SIZE = 16 
+LEARNING_RATE = 0.001
