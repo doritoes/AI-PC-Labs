@@ -9,9 +9,9 @@ import time
 import config
 from model import AdvancedCaptchaModel
 
-# --- HARDENING PARAMETERS ---
-STAGE_1_EPOCHS = 15  
-STAGE_2_EPOCHS = 45  
+# --- CURRICULUM PARAMETERS ---
+STAGE_1_EPOCHS = 20  
+STAGE_2_EPOCHS = 40  
 DYNAMIC_RATIO = 0.40 
 
 class HardenedDataset(Dataset):
@@ -19,19 +19,20 @@ class HardenedDataset(Dataset):
         self.mode = mode
         self.generator = ImageCaptcha(width=config.WIDTH, height=config.HEIGHT)
         
-        # Perspective shift helps the model understand "relative height" (v vs V)
+        # Perspective Warp: Solves the v/V ambiguity by teaching the model 
+        # to perceive character height relative to the image baseline.
         self.transform = transforms.Compose([
-            transforms.RandomPerspective(distortion_scale=0.2, p=0.3),
+            transforms.RandomPerspective(distortion_scale=0.15, p=0.4),
             transforms.ToTensor(),
             transforms.Normalize((0.5,), (0.5,))
         ])
 
-        self.buffer_size = 6000 
+        self.buffer_size = 5000 
         self.static_data = []
         self.refresh_buffer()
 
     def refresh_buffer(self):
-        print(f"\n🔄 [DATA PREP] Generating {self.buffer_size} {self.mode} anchors...")
+        print(f"\n🔄 [DATA PREP] Generating {self.buffer_size} {self.mode.upper()} anchors...")
         start = time.time()
         chars = config.DIGITS if self.mode == 'digits' else config.CHARS
         for _ in range(self.buffer_size):
@@ -65,26 +66,28 @@ def train():
     optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE, weight_decay=0.01)
     
     print("\n" + "="*80)
-    print(f"🎓 HARDENED LAB | Device: {config.DEVICE}")
-    print(f"📡 Strategy: Perspective Warp + 40% Hybrid Injection")
-    print(f"📦 Vocab Size: {len(config.CHARS)} characters | Batch: {config.BATCH_SIZE}")
+    print(f"🎓 LAB COMMENCED | Device: {config.DEVICE}")
+    print(f"📡 Curriculum: {STAGE_1_EPOCHS} Ep (Digits) -> {STAGE_2_EPOCHS} Ep (Alphanum)")
+    print(f"🧪 Hardening: Perspective Warp + 40% Hybrid Injection")
     print("="*80)
 
+    # INITIAL STAGE: DIGITS
     dataset = HardenedDataset(mode='digits')
     
     for epoch in range(1, STAGE_1_EPOCHS + STAGE_2_EPOCHS + 1):
+        # STAGE TRANSITION
         if epoch == STAGE_1_EPOCHS + 1:
             print("\n" + "!"*80)
-            print("🚀 UPGRADE: Switching to Full Alphanumeric Hardening")
+            print("🚀 UPGRADE: Switching to Full Alphanumeric Curriculum")
             print("!"*80)
             dataset = HardenedDataset(mode='full')
             for param_group in optimizer.param_groups:
-                param_group['lr'] = config.LEARNING_RATE * 0.4
+                param_group['lr'] = config.LEARNING_RATE * 0.5 
         
         dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True)
         model.train()
         
-        epoch_loss, correct, case_correct, total = 0, 0, 0, 0
+        epoch_loss, correct, total = 0, 0, 0
         start_time = time.time()
         num_batches = len(dataloader)
         
@@ -99,31 +102,20 @@ def train():
             
             epoch_loss += loss.item()
             
-            # --- Advanced Metrics Calculation ---
+            # --- Strict Accuracy Metrics ---
             out_reshaped = output.view(-1, 6, 62).argmax(2)
             tar_reshaped = target.view(-1, 6, 62).argmax(2)
-            
-            # Strict Accuracy
             correct += (out_reshaped == tar_reshaped).sum().item()
-            
-            # Case-Insensitive Accuracy (The "True Shape" test)
-            for b in range(out_reshaped.size(0)):
-                for c in range(out_reshaped.size(1)):
-                    p_idx, t_idx = out_reshaped[b,c].item(), tar_reshaped[b,c].item()
-                    if config.CHARS[p_idx].lower() == config.CHARS[t_idx].lower():
-                        case_correct += 1
-            
             total += tar_reshaped.numel()
 
             if batch_idx % 5 == 0 or batch_idx == num_batches - 1:
                 elapsed = time.time() - start_time
                 it_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
                 acc = (correct / total) * 100
-                c_acc = (case_correct / total) * 100
-                print(f"\r  ⚡ [Ep {epoch:02d}] {acc:4.1f}% (Case-Insensitive: {c_acc:4.1f}%) | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s", end="", flush=True)
+                print(f"\r  ⚡ [Ep {epoch:02d}] {acc:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s   ", end="", flush=True)
 
         avg_loss = epoch_loss / num_batches
-        print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Loss: {avg_loss:.4f} | Time: {time.time()-start_time:.1f}s")
+        print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Final Acc: {(correct/total)*100:.2f}% | Time: {time.time()-start_time:.1f}s")
         
         if epoch % 5 == 0:
             torch.save(model.state_dict(), "advanced_lab_model.pth")
