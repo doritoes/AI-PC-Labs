@@ -18,15 +18,11 @@ class HardenedDataset(Dataset):
     def __init__(self, mode='digits'):
         self.mode = mode
         self.generator = ImageCaptcha(width=config.WIDTH, height=config.HEIGHT)
-        
-        # Perspective Warp: Solves the v/V ambiguity by teaching the model 
-        # to perceive character height relative to the image baseline.
         self.transform = transforms.Compose([
             transforms.RandomPerspective(distortion_scale=0.15, p=0.4),
             transforms.ToTensor(),
             transforms.Normalize((0.5,), (0.5,))
         ])
-
         self.buffer_size = 5000 
         self.static_data = []
         self.refresh_buffer()
@@ -46,7 +42,6 @@ class HardenedDataset(Dataset):
 
     def __getitem__(self, idx):
         is_dynamic = (self.mode == 'full' and np.random.random() < DYNAMIC_RATIO)
-        
         if is_dynamic:
             text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
             img = self.generator.generate_image(text).convert('L')
@@ -71,11 +66,9 @@ def train():
     print(f"🧪 Hardening: Perspective Warp + 40% Hybrid Injection")
     print("="*80)
 
-    # INITIAL STAGE: DIGITS
     dataset = HardenedDataset(mode='digits')
     
     for epoch in range(1, STAGE_1_EPOCHS + STAGE_2_EPOCHS + 1):
-        # STAGE TRANSITION
         if epoch == STAGE_1_EPOCHS + 1:
             print("\n" + "!"*80)
             print("🚀 UPGRADE: Switching to Full Alphanumeric Curriculum")
@@ -93,7 +86,6 @@ def train():
         
         for batch_idx, (imgs, target) in enumerate(dataloader):
             imgs, target = imgs.to(device), target.to(device)
-            
             optimizer.zero_grad()
             output = model(imgs)
             loss = criterion(output, target)
@@ -101,8 +93,6 @@ def train():
             optimizer.step()
             
             epoch_loss += loss.item()
-            
-            # --- Strict Accuracy Metrics ---
             out_reshaped = output.view(-1, 6, 62).argmax(2)
             tar_reshaped = target.view(-1, 6, 62).argmax(2)
             correct += (out_reshaped == tar_reshaped).sum().item()
@@ -112,7 +102,8 @@ def train():
                 elapsed = time.time() - start_time
                 it_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
                 acc = (correct / total) * 100
-                print(f"\r  ⚡ [Ep {epoch:02d}] {acc:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s   ", end="", flush=True)
+                # RESTORED HUD STRING:
+                print(f"\r  ⚡ [Ep {epoch:02d}] Acc: {acc:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s   ", end="", flush=True)
 
         avg_loss = epoch_loss / num_batches
         print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Final Acc: {(correct/total)*100:.2f}% | Time: {time.time()-start_time:.1f}s")
