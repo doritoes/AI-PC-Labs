@@ -4,11 +4,12 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
 import numpy as np
+import gc
+from tqdm import tqdm
 from captcha.image import ImageCaptcha
 from model import AdvancedCaptchaModel
 import config
 
-# --- 1. THE HYBRID DATASET ENGINE ---
 class HybridCaptchaDataset(Dataset):
     def __init__(self, size, phase="digits", transform=None):
         self.size = size
@@ -20,49 +21,23 @@ class HybridCaptchaDataset(Dataset):
         return self.size
 
     def __getitem__(self, idx):
-        # Determine character pool based on phase
-        if self.phase == "digits":
-            pool = "0123456789"
-        else:
-            pool = config.CHARS
-            
+        pool = "0123456789" if self.phase == "digits" else config.CHARS
         target = "".join([np.random.choice(list(pool)) for _ in range(config.CAPTCHA_LENGTH)])
         
-        # Color is enabled for visual depth, then converted to Grayscale if needed by model
-        img = self.generator.generate_image(target)
+        # Fresh generation happens here - CPU intensive
+        img = self.generator.generate_image(target).convert('L')
         
         if self.transform:
             img = self.transform(img)
             
-        # Encode label
         label = torch.LongTensor([config.CHARS.find(c) for c in target])
         return img, label
 
-# --- 2. THE TRANSFORM PIPELINE ---
-# No blurring as requested. Focus on Perspective and Geometry.
-def get_transforms(phase):
-    t_list = [transforms.Grayscale()]
-    
-    if phase == "refinement":
-        # Perspective is the ultimate 'Exam' preparation
-        t_list.append(transforms.RandomPerspective(distortion_scale=0.2, p=0.7))
-        t_list.append(transforms.RandomRotation(degrees=12))
-    elif phase == "alphanumeric":
-        t_list.append(transforms.RandomRotation(degrees=8))
-        
-    t_list.extend([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5,), (0.5,))
-    ])
-    return transforms.Compose(t_list)
-
-# --- 3. TRAINING ORCHESTRATOR ---
 def train():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = AdvancedCaptchaModel().to(device)
     criterion = nn.CrossEntropyLoss()
     
-    # Phase Management
     phases = [
         {"name": "digits", "epochs": (1, 31), "lr": 0.001},
         {"name": "alphanumeric", "epochs": (31, 71), "lr": 0.0005},
@@ -70,18 +45,22 @@ def train():
     ]
 
     for p in phases:
-        print(f"\n🚀 STARTING PHASE: {p['name'].upper()} (LR: {p['lr']})")
+        print(f"\n🚀 PHASE: {p['name'].upper()} | Target: {p['epochs'][1]-p['epochs'][0]} Epochs")
         optimizer = optim.Adam(model.parameters(), lr=p['lr'])
         
-        # Fresh image heavy mix (80% fresh in refinement)
-        dataset = HybridCaptchaDataset(size=20000, phase=p['name'], transform=get_transforms(p['name']))
-        loader = DataLoader(dataset, batch_size=64, shuffle=True)
+        # Reduced size to 10k to prevent RAM bloat on 16GB systems
+        dataset = HybridCaptchaDataset(size=10000, phase=p['name'], transform=get_transforms(p['name']))
+        # num_workers=0 is safer for debugging "frozen" scripts
+        loader = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=0)
 
         for epoch in range(p['epochs'][0], p['epochs'][1]):
             model.train()
             total_loss = 0
             
-            for imgs, labels in loader:
+            # This progress bar will tell you EXACTLY if it's moving
+            pbar = tqdm(loader, desc=f"Epoch {epoch}", unit="batch")
+            
+            for imgs, labels in pbar:
                 imgs, labels = imgs.to(device), labels.to(device)
                 optimizer.zero_grad()
                 
@@ -93,12 +72,22 @@ def train():
                 
                 loss.backward()
                 optimizer.step()
+                
                 total_loss += loss.item()
-            
-            print(f"Epoch {epoch} | Loss: {total_loss/len(loader):.4f}")
+                pbar.set_postfix(loss=f"{loss.item()/config.CAPTCHA_LENGTH:.4f}")
 
-    torch.save(model.state_dict(), "advanced_lab_model.pth")
-    print("\n✅ 100 Epoch Marathon Complete.")
+            # Force memory cleanup after every epoch
+            gc.collect()
+            torch.save(model.state_dict(), "advanced_lab_model.pth")
+
+# Placeholder for the transform function mentioned in previous turns
+def get_transforms(phase):
+    t_list = [transforms.Grayscale()]
+    if phase == "refinement":
+        t_list.append(transforms.RandomPerspective(distortion_scale=0.2, p=0.7))
+        t_list.append(transforms.RandomRotation(degrees=12))
+    t_list.extend([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))])
+    return transforms.Compose(t_list)
 
 if __name__ == "__main__":
     train()
