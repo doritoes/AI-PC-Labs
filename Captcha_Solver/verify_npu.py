@@ -1,3 +1,6 @@
+"""
+quick test to confirm the NPU is detected and working
+"""
 import sys
 import openvino as ov
 import numpy as np
