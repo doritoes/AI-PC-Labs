@@ -6,10 +6,10 @@ import os
 from captcha.image import ImageCaptcha
 
 # --- 1. SETUP & CONFIG ---
-# Import settings from your central config
 try:
     from config import CHARS, CAPTCHA_LENGTH, WIDTH, HEIGHT
 except ImportError:
+    # Advanced 62-char set: 0-9, a-z, A-Z
     CHARS = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
     CAPTCHA_LENGTH = 6
     WIDTH, HEIGHT = 200, 80
@@ -18,79 +18,79 @@ core = ov.Core()
 TEST_SAMPLES = 100 
 generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
 
-# Path to your optimized INT8 model
-root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-model_xml = os.path.join(root_dir, "openvino_int8_model", "captcha_model_int8.xml")
+# Updated Path: Matches the 'advanced' directory structure
+current_dir = os.path.dirname(os.path.abspath(__file__))
+model_xml = os.path.join(current_dir, "openvino_int8_model", "captcha_model_int8.xml")
 
-# --- 2. LOAD NPU MODEL ---
-print(f"🚀 Initializing Intel AI Boost NPU...")
+# --- 2. LOAD NPU ENGINE ---
+print(f"🚀 Initializing Intel AI Boost (Arrow Lake NPU)...")
 try:
     if not os.path.exists(model_xml):
         raise FileNotFoundError(f"Missing INT8 model at {model_xml}")
         
     model = core.read_model(model_xml)
+    # Force static shape to ensure NPU optimization
+    model.reshape({0: [1, 1, HEIGHT, WIDTH]})
     compiled_model = core.compile_model(model, "NPU")
-    print("✅ NPU Engine Ready. Advanced Alphanumeric Model Loaded.")
+    print("✅ NPU Engine Ready. INT8 Advanced Alphanumeric Model Loaded.")
 except Exception as e:
     print(f"❌ Error loading model: {e}")
     sys.exit()
 
 # --- 3. VALIDATION LOOP ---
-print(f"📊 Running NPU Validation on {TEST_SAMPLES} live-generated advanced CAPTCHAs...")
+print(f"📊 Testing {TEST_SAMPLES} live-generated {CAPTCHA_LENGTH}-char advanced CAPTCHAs...")
 success_count = 0
 total_inference_time = 0
 
 for i in range(TEST_SAMPLES):
-    # Generate random secret using full CHARS set
+    # Generate random secret using the full 62-character set
     secret = "".join([np.random.choice(list(CHARS)) for _ in range(CAPTCHA_LENGTH)])
 
-    # Generate Image
-    img = generator.generate_image(secret)
+    # Generate Image (Must be 'L' for Grayscale)
+    img = generator.generate_image(secret).convert('L')
     
-    # Preprocess (Matches train.py logic)
-    # 1. Grayscale & Normalize to [0, 1]
-    img_np = np.array(img.convert('L')).astype(np.float32) / 255.0
-    # 2. Standardize (Normalize -0.5 / 0.5)
-    img_np = (img_np - 0.5) / 0.5
-    # 3. Add Batch and Channel dims: [1, 1, H, W]
-    input_tensor = np.expand_dims(np.expand_dims(img_np, 0), 0)
+    # Preprocess (Matches training transforms exactly)
+    img_np = np.array(img).astype(np.float32) / 255.0
+    img_np = (img_np - 0.5) / 0.5  # Standardization
+    input_tensor = img_np.reshape(1, 1, HEIGHT, WIDTH)
 
     # NPU Inference
     start = time.perf_counter()
-    results = compiled_model([input_tensor])[compiled_model.output(0)]
+    results = compiled_model([input_tensor])[0]
     end = time.perf_counter()
 
     total_inference_time += (end - start)
 
-    # Decode Output: [1, 6, 62] -> Argmax over the 62 characters
-    # Results[0] gives us the (6, 62) matrix
-    pred_indices = np.argmax(results[0], axis=1)
+    # Decode Output
+    # Advanced Model Output: [1, 372] -> Reshape to [6, 62]
+    predictions = results.reshape(CAPTCHA_LENGTH, -1)
+    pred_indices = np.argmax(predictions, axis=1)
     pred_str = "".join([CHARS[idx] for idx in pred_indices])
 
     if pred_str == secret:
         success_count += 1
-        
+    
     if (i + 1) % 10 == 0:
-        print(f"  > Processed {i + 1}/{TEST_SAMPLES} samples...")
+        print(f"  > Benchmarking: {i + 1}/{TEST_SAMPLES}...")
 
-# --- 4. FINAL REPORT ---
+# --- 4. FINAL NPU REPORT ---
 success_rate = (success_count / TEST_SAMPLES) * 100
 avg_time_ms = (total_inference_time / TEST_SAMPLES) * 1000
 
 print("\n" + "="*45)
 print("           ADVANCED NPU TEST REPORT")
 print("="*45)
-print(f"Hardware Engine:     Intel Core Ultra (NPU)")
-print(f"Model Complexity:    {CAPTCHA_LENGTH} Chars (Alphanumeric)")
-print(f"Model Precision:     INT8 (Quantized)")
-print(f"Total Samples:       {TEST_SAMPLES}")
-print(f"Successful Cracks:   {success_count}")
-print(f"NPU Success Rate:    {success_rate:.2f}%")
-print(f"Avg Inference Time:  {avg_time_ms:.2f} ms")
-print(f"Total Throughput:    {TEST_SAMPLES/total_inference_time:.2f} items/sec")
+print(f"Hardware Engine:     Intel® AI Boost (NPU)")
+print(f"Character Set:       62 (Alphanumeric Mixed-Case)")
+print(f"Input Resolution:    {WIDTH}x{HEIGHT}")
+print(f"Success Rate:        {success_rate:.2f}%")
+print(f"Avg NPU Latency:     {avg_time_ms:.2f} ms")
+print(f"Peak Throughput:     {1000/avg_time_ms:.1f} Captchas/Sec")
 print("="*45)
 
-if success_rate > 90:
-    print("\n🏆 High Performance Detected: Model is production ready.")
+if success_rate > 95:
+    print("\n🏆 Production Ready: NPU accuracy exceeds high-performance threshold.")
+elif success_rate > 80:
+    print("\n⚠️  Stable: Good performance, but check for case-sensitivity confusions.")
 else:
-    print("\n💡 Tip: If success rate is low, increase DATASET_SIZE in config.py and retrain.")
+    print("\n💡 Tip: Accuracy drop detected. Consider increasing INT8 calibration samples.")
