@@ -75,6 +75,17 @@ WARNINGS :warning:
 12. Convert and Quantize
      - `python convert.py`
      - `python quantize.py`
+         - Windows Smart App Control (SAC) flags `torch_xpu_ops_aten.dll` as a risk
+           - Step 1 - The "Local Exclusion" (Command Line)
+             - Open administrative PowerShell
+             - `Add-MpPreference -ExclusionPath "C:\Users\sethh\Captcha-AI\"`
+           - Step 2 - Force "Unblock" on the entire Env
+             - `dir -Path "C:\Users\sethh\Captcha-AI\" -Recurse | Unblock-File`
+           - Step 3 - "Developer Mode" Toggle (relaxes SAC policy for unsigned local DLLs)
+             - Press Win + I to open Settings
+             - Search **User developer features** and open
+             - Toggle Developer Mode to **On**
+             - Restart your PC. This is crucial because SAC policies are often loaded at boot.
 13. Test
     - `python solve-captcha.py`
     - `python game.py`
