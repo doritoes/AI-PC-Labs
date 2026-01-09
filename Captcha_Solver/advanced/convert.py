@@ -1,3 +1,6 @@
+"""
+There will be a lot of warnings. For example going from FP32 to INT8 will always be messy.
+"""
 import os
 import torch
 import nncf
