@@ -1,3 +1,6 @@
+"""
+quantize model to INT8 for NPU use
+"""
 import openvino as ov
 import nncf
 from torch.utils.data import DataLoader
