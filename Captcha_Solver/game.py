@@ -1,3 +1,6 @@
+"""
+simulate a hacking game based on solving captchas
+"""
 import os
 import sys
 import time
