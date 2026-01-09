@@ -1,98 +1,141 @@
 """
-train the numeric CAPTCHA model
+train the model on numeric captchas
 """
+import os
+import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, Dataset
-from torchvision import transforms
+from torch.utils.data import DataLoader, Dataset, random_split
 from captcha.image import ImageCaptcha
 import numpy as np
-from datetime import datetime
-import config
-from model import AdvancedCaptchaModel
 
-START_TIME = datetime.now()
+# --- 1. CONFIGURATION ---
+CHARS = "0123456789"
+CAPTCHA_LENGTH = 4
+WIDTH, HEIGHT = 160, 60
+DATASET_SIZE = 10000
+BATCH_SIZE = 32
+TRAIN_SPLIT = 0.8
+EPOCHS = 10
 
+# --- 2. HARDWARE DETECTION ---
+SYSTEM_THREADS = os.cpu_count() or 1
+
+# --- 3. DATASET GENERATOR ---
 class CaptchaDataset(Dataset):
-    def __init__(self, size, chars, length, width, height):
+    def __init__(self, size):
         self.size = size
-        self.chars = chars
-        self.length = length
-        self.generator = ImageCaptcha(width=width, height=height)
-        self.buffer = []
-
-        print(f"📦 DATA PREP: Pre-loading {size} images into RAM...")
-        for i in range(size):
-            target_text = ''.join(np.random.choice(list(self.chars), self.length))
-            img = self.generator.generate_image(target_text).convert('L')
-            img_tensor = transforms.ToTensor()(img)
-
-            target = torch.zeros(self.length, len(self.chars))
-            for i_char, char in enumerate(target_text):
-                target[i_char, self.chars.find(char)] = 1
-
-            self.buffer.append((img_tensor, target))
-            if (i + 1) % 5000 == 0:
-                print(f"  > Cached {i + 1}/{size}...")
-        print("✅ RAM Buffer Ready.")
+        self.generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
 
     def __len__(self):
         return self.size
 
     def __getitem__(self, idx):
-        return self.buffer[idx]
+        label_str = "".join([np.random.choice(list(CHARS)) for _ in range(CAPTCHA_LENGTH)])
+        img = self.generator.generate_image(label_str)
+        img = np.array(img.convert('L')) / 255.0
+        img = torch.FloatTensor(img).unsqueeze(0)
 
-def format_seconds(seconds):
-    s = int(seconds)
-    return f"{s // 3600:02d}:{(s % 3600) // 60:02d}:{s % 60:02d}"
+        label = torch.zeros(CAPTCHA_LENGTH, len(CHARS))
+        for i, char in enumerate(label_str):
+            label[i][CHARS.find(char)] = 1
 
-def train():
-    dataset = CaptchaDataset(config.DATASET_SIZE, config.CHARS, config.CAPTCHA_LENGTH, config.WIDTH, config.HEIGHT)
-    dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
+        return img, label.flatten()
 
-    device = torch.device(config.DEVICE)
-    model = AdvancedCaptchaModel().to(device)
+# --- 4. THE MODEL ARCHITECTURE ---
+class SimpleCNN(nn.Module):
+    def __init__(self):
+        super(SimpleCNN, self).__init__()
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2, 2))
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(32, 64, 3, padding=1), nn.ReLU(),
+            nn.MaxPool2d(2, 2))
+        self.fc = nn.Linear(64 * 40 * 15, 1024)
+        self.output = nn.Linear(1024, CAPTCHA_LENGTH * len(CHARS))
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE)
-    scheduler = optim.lr_scheduler.OneCycleLR(
-        optimizer, max_lr=config.LEARNING_RATE,
-        steps_per_epoch=len(dataloader), epochs=config.EPOCHS
-    )
+    def forward(self, x):
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = x.view(x.size(0), -1)
+        x = torch.relu(self.fc(x))
+        return self.output(x)
 
-    print(f"🚀 Training Active | Device: {config.DEVICE} | Started: {START_TIME.strftime('%H:%M:%S')}")
+# --- 5. TRAINING LOGIC WRAPPER ---
+def main():
+    print(f"System detected: {SYSTEM_THREADS} logical threads.")
+    print(f"Generating dataset of {DATASET_SIZE} images in memory...")
 
-    for epoch in range(config.EPOCHS):
-        model.train()
-        epoch_start = datetime.now()
+    full_dataset = CaptchaDataset(DATASET_SIZE)
+    train_size = int(TRAIN_SPLIT * DATASET_SIZE)
+    test_size = DATASET_SIZE - train_size
 
-        for i, (images, labels) in enumerate(dataloader):
-            images, labels = images.to(device), labels.to(device)
+    train_dataset, test_dataset = random_split(full_dataset, [train_size, test_size])
 
+    # num_workers is set to 0 for maximum compatibility with Windows venv
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False)
+
+    print(f"Ready: {train_size} training images, {test_size} held-back test images.")
+
+    model = SimpleCNN()
+    criterion = nn.MultiLabelSoftMarginLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    print(f"\nStarting training on CPU using {SYSTEM_THREADS} threads...")
+    start_time = time.perf_counter()
+
+    model.train()
+    for epoch in range(EPOCHS):
+        running_loss = 0.0
+        for images, labels in train_loader:
             optimizer.zero_grad()
             outputs = model(images)
-            loss = criterion(outputs.view(-1, len(config.CHARS)), labels.view(-1, len(config.CHARS)).argmax(dim=1))
+            loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            scheduler.step()
+            running_loss += loss.item()
 
-            if i % 10 == 0:
-                now = datetime.now()
-                elapsed = (now - epoch_start).total_seconds()
-                it_per_sec = (i + 1) / elapsed if elapsed > 0 else 0
+        print(f"Epoch {epoch+1}/{EPOCHS} - Loss: {running_loss/len(train_loader):.4f}")
 
-                # Progress and ETA
-                progress = ((i + 1) / len(dataloader)) * 100
-                rem_its = len(dataloader) - (i + 1)
-                eta_s = rem_its / it_per_sec if it_per_sec > 0 else 0
+    end_time = time.perf_counter()
+    total_train_time = end_time - start_time
 
-                print(f"Ep {epoch+1:02d} | {progress:5.1f}% | Loss: {loss.item():.4f} | {it_per_sec:.2f} it/s | ETA: {int(eta_s//60):02d}:{int(eta_s%60):02d} | Total: {format_seconds((now - START_TIME).total_seconds())}    ", end='\r')
+    print("\nTesting model against held-back images...")
+    model.eval()
+    correct = 0
+    total = 0
 
-        print(f"\n✅ Epoch {epoch+1:02d} | Final Loss: {loss.item():.4f}")
-        torch.save(model.state_dict(), "advanced_lab_model.pth")
-        if hasattr(torch, 'xpu'):
-            torch.xpu.empty_cache()
+    with torch.no_grad():
+        for images, labels in test_loader:
+            outputs = model(images)
+            output_reshaped = outputs.view(-1, CAPTCHA_LENGTH, len(CHARS))
+            labels_reshaped = labels.view(-1, CAPTCHA_LENGTH, len(CHARS))
 
+            pred_digits = output_reshaped.argmax(dim=2)
+            true_digits = labels_reshaped.argmax(dim=2)
+
+            correct_indices = (pred_digits == true_digits).all(dim=1)
+            correct += correct_indices.sum().item()
+            total += labels.size(0)
+
+    print("-" * 40)
+    print(f"TRAINING SESSION SUMMARY")
+    print(f"Hardware Threads Used: {SYSTEM_THREADS}")
+    print(f"Total Training Time:   {total_train_time:.2f} seconds")
+    print(f"Final Accuracy Score:  {(correct/total)*100:.2f}%")
+    print("-" * 40)
+
+    save_path = "captcha_model.pth"
+    try:
+        torch.save(model.state_dict(), save_path)
+        print(f"SUCCESS: Model saved as {save_path}")
+    except Exception as e:
+        print(f"ERROR: Could not save model: {e}")
+
+# This ensures the code only runs if the script is executed directly,
+# not when imported by convert.py
 if __name__ == "__main__":
-    train()
+    main()
