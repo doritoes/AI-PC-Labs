@@ -3,122 +3,102 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
 from torchvision import transforms
-from captcha.image import ImageCaptcha
 import numpy as np
-import time
-import config
+from captcha.image import ImageCaptcha
 from model import AdvancedCaptchaModel
+import config
 
-# --- CURRICULUM PARAMETERS ---
-STAGE_1_EPOCHS = 20  
-STAGE_2_EPOCHS = 40  
-DYNAMIC_RATIO = 0.40 
-
-class HardenedDataset(Dataset):
-    def __init__(self, mode='digits'):
-        self.mode = mode
+# --- 1. THE HYBRID DATASET ENGINE ---
+class HybridCaptchaDataset(Dataset):
+    def __init__(self, size, phase="digits", transform=None):
+        self.size = size
+        self.transform = transform
+        self.phase = phase
         self.generator = ImageCaptcha(width=config.WIDTH, height=config.HEIGHT)
-        self.transform = transforms.Compose([
-            transforms.RandomPerspective(distortion_scale=0.15, p=0.4),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,))
-        ])
-        self.buffer_size = 5000 
-        self.static_data = []
-        self.refresh_buffer()
-
-    def refresh_buffer(self):
-        print(f"\n🔄 [DATA PREP] Generating {self.buffer_size} {self.mode.upper()} anchors...")
-        start = time.time()
-        chars = config.DIGITS if self.mode == 'digits' else config.CHARS
-        for _ in range(self.buffer_size):
-            text = ''.join(np.random.choice(list(chars), config.CAPTCHA_LENGTH))
-            img = self.generator.generate_image(text).convert('L')
-            self.static_data.append((self.transform(img), text))
-        print(f"✅ Buffer Ready ({time.time()-start:.1f}s)")
-
+        
     def __len__(self):
-        return self.buffer_size
+        return self.size
 
     def __getitem__(self, idx):
-        is_dynamic = (self.mode == 'full' and np.random.random() < DYNAMIC_RATIO)
-        if is_dynamic:
-            text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
-            img = self.generator.generate_image(text).convert('L')
-            img_tensor = self.transform(img)
+        # Determine character pool based on phase
+        if self.phase == "digits":
+            pool = "0123456789"
         else:
-            img_tensor, text = self.static_data[idx]
-        
-        target = torch.zeros(config.CAPTCHA_LENGTH, len(config.CHARS))
-        for i, char in enumerate(text):
-            target[i, config.CHARS.find(char)] = 1
-        return img_tensor, target.flatten()
-
-def train():
-    device = torch.device(config.DEVICE)
-    model = AdvancedCaptchaModel().to(device)
-    criterion = nn.MultiLabelSoftMarginLoss() 
-    optimizer = optim.AdamW(model.parameters(), lr=config.LEARNING_RATE, weight_decay=0.01)
-    
-    # 80-character header
-    header_line = "="*80
-    print("\n" + header_line)
-    print(f"🎓 LAB COMMENCED | Device: {config.DEVICE}")
-    print(f"📡 Curriculum: {STAGE_1_EPOCHS} Ep (Digits) -> {STAGE_2_EPOCHS} Ep (Alphanum)")
-    print(f"🧪 Hardening: Perspective Warp + 40% Hybrid Injection")
-    print(header_line)
-
-    dataset = HardenedDataset(mode='digits')
-    
-    for epoch in range(1, STAGE_1_EPOCHS + STAGE_2_EPOCHS + 1):
-        if epoch == STAGE_1_EPOCHS + 1:
-            print("\n" + "!"*80)
-            print("🚀 UPGRADE: Switching to Full Alphanumeric Curriculum")
-            print("!"*80)
-            dataset = HardenedDataset(mode='full')
-            for param_group in optimizer.param_groups:
-                param_group['lr'] = config.LEARNING_RATE * 0.5 
-        
-        dataloader = DataLoader(dataset, batch_size=config.BATCH_SIZE, shuffle=True)
-        model.train()
-        
-        epoch_loss, correct, total = 0, 0, 0
-        start_time = time.time()
-        num_batches = len(dataloader)
-        
-        for batch_idx, (imgs, target) in enumerate(dataloader):
-            imgs, target = imgs.to(device), target.to(device)
-            optimizer.zero_grad()
-            output = model(imgs)
-            loss = criterion(output, target)
-            loss.backward()
-            optimizer.step()
+            pool = config.CHARS
             
-            epoch_loss += loss.item()
-            out_reshaped = output.view(-1, 6, 62).argmax(2)
-            tar_reshaped = target.view(-1, 6, 62).argmax(2)
-            correct += (out_reshaped == tar_reshaped).sum().item()
-            total += tar_reshaped.numel()
-
-            if batch_idx % 2 == 0 or batch_idx == num_batches - 1:
-                elapsed = time.time() - start_time
-                it_per_sec = (batch_idx + 1) / elapsed if elapsed > 0 else 0
-                acc = (correct / total) * 100
-                percent = ((batch_idx + 1) / num_batches) * 100
-                
-                # --- WIDE HUD WITH PROGRESS ---
-                # This fills the space to match the header width
-                status = (f"\r  ⚡ [Ep {epoch:02d}] {percent:3.0f}% | "
-                          f"Acc: {acc:5.1f}% | "
-                          f"Loss: {loss.item():.4f} | "
-                          f"Speed: {it_per_sec:.2f} it/s  ")
-                print(status.ljust(78), end="", flush=True)
-
-        avg_loss = epoch_loss / num_batches
-        print(f"\n✅ Epoch [{epoch:02d}] COMPLETE | Final Acc: {(correct/total)*100:.2f}% | Time: {time.time()-start_time:.1f}s")
+        target = "".join([np.random.choice(list(pool)) for _ in range(config.CAPTCHA_LENGTH)])
         
-        if epoch % 5 == 0:
-            torch.save(model.state_dict(), "advanced_lab_model.pth")
+        # Color is enabled for visual depth, then converted to Grayscale if needed by model
+        img = self.generator.generate_image(target)
+        
+        if self.transform:
+            img = self.transform(img)
+            
+        # Encode label
+        label = torch.LongTensor([config.CHARS.find(c) for c in target])
+        return img, label
+
+# --- 2. THE TRANSFORM PIPELINE ---
+# No blurring as requested. Focus on Perspective and Geometry.
+def get_transforms(phase):
+    t_list = [transforms.Grayscale()]
+    
+    if phase == "refinement":
+        # Perspective is the ultimate 'Exam' preparation
+        t_list.append(transforms.RandomPerspective(distortion_scale=0.2, p=0.7))
+        t_list.append(transforms.RandomRotation(degrees=12))
+    elif phase == "alphanumeric":
+        t_list.append(transforms.RandomRotation(degrees=8))
+        
+    t_list.extend([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5,), (0.5,))
+    ])
+    return transforms.Compose(t_list)
+
+# --- 3. TRAINING ORCHESTRATOR ---
+def train():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = AdvancedCaptchaModel().to(device)
+    criterion = nn.CrossEntropyLoss()
+    
+    # Phase Management
+    phases = [
+        {"name": "digits", "epochs": (1, 31), "lr": 0.001},
+        {"name": "alphanumeric", "epochs": (31, 71), "lr": 0.0005},
+        {"name": "refinement", "epochs": (71, 101), "lr": 0.0001}
+    ]
+
+    for p in phases:
+        print(f"\n🚀 STARTING PHASE: {p['name'].upper()} (LR: {p['lr']})")
+        optimizer = optim.Adam(model.parameters(), lr=p['lr'])
+        
+        # Fresh image heavy mix (80% fresh in refinement)
+        dataset = HybridCaptchaDataset(size=20000, phase=p['name'], transform=get_transforms(p['name']))
+        loader = DataLoader(dataset, batch_size=64, shuffle=True)
+
+        for epoch in range(p['epochs'][0], p['epochs'][1]):
+            model.train()
+            total_loss = 0
+            
+            for imgs, labels in loader:
+                imgs, labels = imgs.to(device), labels.to(device)
+                optimizer.zero_grad()
+                
+                outputs = model(imgs).view(-1, config.CAPTCHA_LENGTH, len(config.CHARS))
+                
+                loss = 0
+                for i in range(config.CAPTCHA_LENGTH):
+                    loss += criterion(outputs[:, i, :], labels[:, i])
+                
+                loss.backward()
+                optimizer.step()
+                total_loss += loss.item()
+            
+            print(f"Epoch {epoch} | Loss: {total_loss/len(loader):.4f}")
+
+    torch.save(model.state_dict(), "advanced_lab_model.pth")
+    print("\n✅ 100 Epoch Marathon Complete.")
 
 if __name__ == "__main__":
     train()
