@@ -1,3 +1,6 @@
+"""
+convert from PyTorch to OpenVINO
+"""
 import os
 import sys
 import torch
