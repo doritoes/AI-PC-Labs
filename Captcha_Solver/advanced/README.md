@@ -49,11 +49,12 @@ WARNINGS :warning:
     - `python --version`
 5. `python -m pip install --upgrade pip setuptools wheel`
 6. `pip install opencv-python pillow captcha onnx openvino==2025.4.1 numpy nncf`
-7. `pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/xpu`
-8. Confirm the GPU is ready
+7. `pip install tqdm`
+8. `pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/xpu`
+9. Confirm the GPU is ready
     - `python -c "import torch; print('XPU Available:', torch.xpu.is_available()); print('Device Name:', torch.xpu.get_device_name(0) if torch.xpu.is_available() else 'Not Found')"`
-9. Create a folder named `advanced`
-10. In the folder create
+10. Create a folder named `advanced`
+11. In the folder create
     - [config.py](config.py)
     - [model.py](model.py)
     - [train.py](train.py)
@@ -61,7 +62,7 @@ WARNINGS :warning:
     - [quantize.py](quantize.py)
     - [solve-captcha.py](solve-captcha.py)
     - [game.py](game.py)
-11. Start the GPU cache purge loop in a separate powershell window
+12. Start the GPU cache purge loop in a separate powershell window
     - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
     - This does a hard flush of GPU cache every minute for 1 day
     - This is CPU to keep the training script working in such a small 16GB memory space
