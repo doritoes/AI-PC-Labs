@@ -18,9 +18,10 @@ Heavily tuned for this hardware
 - Single bank of RAM, so tune RAM load
 - NOTE If an epoch is running overly long, heard-clearing GPU cache will bring it back to life
   - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
+  - You need to do this often, but the quality model was worth it!
 
 WARNINGS :warning:
-- :warning: this puts an intensive load on your GPU
+- :warning: this puts an intensive load on your Mini
   - put your Mini on a wire rack and point a fan at it, or similarly keep it cool
 - :warning: You are entering dependency hell. The following was tested on this specific environment at the time of writing.
 - :warning: This is running on the very edge of RAM. You NEED to close out all apps when you are training.
@@ -67,26 +68,29 @@ WARNINGS :warning:
     - This does a hard flush of GPU cache every minute for 1 day
     - This is CPU to keep the training script working in such a small 16GB memory space
 11. Train
-     - `python train.py`
-     - Let it cook! The iGPU is a beast.
-     - Phases
-         - Foundation (Epochs 1-5) Loss drops steadily. Accuracy stays at 0% or very low (<1%)
-         - Breakthrough (Epochs 6-15) Accuracy begins to "pop" (e.g., 5% > 20% > 50%)
-         - Refinement (Epochs 16-30) Loss flattens. Accuracy climbs toward 90%+
+    - `python train.py`
+    - Key: Hybrid training adding in fresh images to prevent over-fitting on the noise
+    - In testing, achieved 92.33% character-level accuracy and 67.00% full solve rate
+    - Phases
+        - Foundation (Epochs 1-30) First learns the numeric digits
+        - Alphanumeric (Epochs 31-70 Add in the rest of the characters while leveraging label smoothing
+        - Refinement (Epochs 71-100) Add "perspective" augmentation and improve accuracy
 12. Convert and Quantize
-     - `python convert.py`
-     - `python quantize.py`
-         - Windows Smart App Control (SAC) flags `torch_xpu_ops_aten.dll` as a risk
-           - Step 1 - The "Local Exclusion" (Command Line)
-             - Open administrative PowerShell
-             - `Add-MpPreference -ExclusionPath "C:\Users\sethh\Captcha-AI\"`
-           - Step 2 - Force "Unblock" on the entire Env
-             - `dir -Path "C:\Users\sethh\Captcha-AI\" -Recurse | Unblock-File`
-           - Step 3 - "Developer Mode" Toggle (relaxes SAC policy for unsigned local DLLs)
-             - Press Win + I to open Settings
-             - Search **User developer features** and open
-             - Toggle Developer Mode to **On**
-             - Restart your PC. This is crucial because SAC policies are often loaded at boot.
+    - `python convert.py`
+        - Will see some warnings, it is OK
+    - `python quantize.py`
+        - Windows Smart App Control (SAC) flags `torch_xpu_ops_aten.dll` as a risk
+            - Step 1 - The "Local Exclusion" (Command Line)
+                - Open administrative PowerShell
+                - `Add-MpPreference -ExclusionPath "C:\Users\sethh\Captcha-AI\"`
+            - Step 2 - Force "Unblock" on the entire Env
+                - `dir -Path "C:\Users\sethh\Captcha-AI\" -Recurse | Unblock-File`
+            - Step 3 - "Developer Mode" Toggle (relaxes SAC policy for unsigned local DLLs)
+                - Press Win + I to open Settings
+                - Search **User developer features** and open
+                - Toggle Developer Mode to **On**
+                - Restart your PC. This is crucial because SAC policies are often loaded at boot.
+        - Will see errors, is is OK
 13. Test
     - `python solve-captcha.py`
     - `python game.py`
