@@ -30,7 +30,7 @@ def convert_and_quantize():
     model.eval()
 
     # 3. Create Calibration Data
-    print("🧪 Generating 300 samples for INT8 calibration...")
+    print("🧪 Generating 1000 samples for INT8 calibration...")
     generator = ImageCaptcha(width=config.WIDTH, height=config.HEIGHT)
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -43,7 +43,7 @@ def convert_and_quantize():
         return data_item.unsqueeze(0) # Keep as torch.Tensor
 
     calibration_images = []
-    for _ in range(300):
+    for _ in range(1000):
         text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
         img = generator.generate_image(text).convert('L')
         calibration_images.append(transform(img))
