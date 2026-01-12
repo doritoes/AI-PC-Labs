@@ -67,7 +67,7 @@ WARNINGS :warning:
     - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
     - This does a hard flush of GPU cache every minute for 1 day
     - This is CPU to keep the training script working in such a small 16GB memory space
-11. Train
+13. Train
     - `python train.py`
     - Key: Hybrid training adding in fresh images to prevent over-fitting on the noise
     - In testing, achieved 92.33% character-level accuracy and 67.00% full solve rate
@@ -75,7 +75,17 @@ WARNINGS :warning:
         - Foundation (Epochs 1-30) First learns the numeric digits
         - Alphanumeric (Epochs 31-70 Add in the rest of the characters while leveraging label smoothing
         - Refinement (Epochs 71-100) Add "perspective" augmentation and improve accuracy
-12. Convert and Quantize
+    - Test progress
+        - `predict.py` will test the model
+        - `benchmark.py` will test the model some more
+14. Refine
+    - Decided to do additional training to improve on the "hard characters" to identify
+    - 5 more epochs
+    - `refine.py`
+    - Test progress
+        - `predict.py` will test the model
+        - `benchmark.py` will test the model some more
+15. Convert and Quantize
     - `python convert.py`
         - Will see some warnings, it is OK
     - `python quantize.py`
@@ -91,6 +101,6 @@ WARNINGS :warning:
                 - Toggle Developer Mode to **On**
                 - Restart your PC. This is crucial because SAC policies are often loaded at boot.
         - Will see errors, is is OK
-13. Test
+16. Test
     - `python solve-captcha.py`
     - `python game.py`
