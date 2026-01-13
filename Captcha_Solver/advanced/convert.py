@@ -1,3 +1,6 @@
+"""
+convert PyTorch model to OpenVINO
+"""
 import os
 import torch
 import nncf
@@ -9,11 +12,12 @@ from model import AdvancedCaptchaModel
 import config
 
 def convert_and_quantize():
+    """ convert and quantize model """
     # 1. Setup Paths
     current_dir = os.path.dirname(os.path.abspath(__file__))
     weights_path = os.path.join(current_dir, "advanced_lab_model.pth")
     output_dir = os.path.join(current_dir, "openvino_int8_model")
-    
+
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
@@ -55,22 +59,22 @@ def convert_and_quantize():
 
     # 5. Execute Quantization
     print("🚀 Starting Mixed-Precision Quantization...")
-    
+
     try:
         # Attempt quantization with the precision shield
         quantized_model = nncf.quantize(
-            model, 
+            model,
             calibration_dataset,
             preset=nncf.QuantizationPreset.MIXED,
             subset_size=1000,
             ignored_scope=ignored_scope,
-            fast_bias_correction=True 
+            fast_bias_correction=True
         )
     except Exception as e:
         print(f"⚠️ Shielding failed: {e}")
         print("🔄 Falling back to Automatic Mixed-Precision...")
         quantized_model = nncf.quantize(
-            model, 
+            model,
             calibration_dataset,
             preset=nncf.QuantizationPreset.MIXED,
             subset_size=1000,
