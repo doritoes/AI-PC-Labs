@@ -1,6 +1,8 @@
 # Captcha Solver Lab
 The mission in this Lab is to create genuine hands-on experience for technology learners using the learner-friendly NUC PCs. This is a second Lab to demonstrate the NPU boost for Captcha solving.
 
+Background: This Lab was inspired by the SANS Institute's Holiday Hack Challenge 2019, where players had to bypass a "Completely Automated Public Turing test to tell Humans and Elves Apart" (CAPTHEA). Machine learning and provided tools like TensorFlow were used to identify holiday items quickly. Participants trained a model with 12,000 images to recognize items in under 5 seconds, a feat impossible for humans, allowing them to win virtual cookies and progress in the narrative.
+
 NOTE Intel NPUs currently perform best when accessed directly from Windows. The NPU driver support inside the Linux kernel for WSL is still maturing.
 
 IMPORTANT Be aware that the drivers and models and versions are very fluid, and what works today might not working tomorrow!
@@ -18,9 +20,8 @@ Mission:
 - Set up Python environment
 - Install OpenVINO
 - Verify Hardware
-- Select Model
-- Power Test
-- Future Projects
+- Train Model
+- Test (and have fun!)
 
 Materials:
 - Windows 11 PC with Intel Core Ultra  processor (dedicated NPU)
