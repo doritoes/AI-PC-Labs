@@ -46,6 +46,9 @@ The model is currently using FP32 (32-bit floating point) math. The NPU on the C
 4. Make a "hacking game"
     - [Game](8_Game.md)
 
+## Optional - Advanced CAPTHA
+For an advanced challenge, push the AI PC to the limit and train a powerful model to crack 6-character CAPTCHAs made of letters and numbers (upper and lower case).
+- [advanced/README.md](advanced/README.md)
 
 ## Cleanup
 Steps required to clean up after the Lab is complete.
