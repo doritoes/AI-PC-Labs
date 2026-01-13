@@ -1,3 +1,6 @@
+"""
+benchmark solving CAPTCHAs using the quantized model
+"""
 import os
 import time
 import numpy as np
@@ -14,7 +17,7 @@ def decode(logits):
 def run_final_breach(num_tests=100):
     current_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(current_dir, "final_npu_int8.xml")
-    
+
     if not os.path.exists(model_path):
         print(f"❌ Error: {model_path} not found! Run quantize-improved.py first.")
         return
@@ -40,7 +43,7 @@ def run_final_breach(num_tests=100):
         # Generate target
         real_text = ''.join(np.random.choice(list(config.CHARS), config.CAPTCHA_LENGTH))
         img = generator.generate_image(real_text).convert('L')
-        
+
         # Pre-process
         input_tensor = transform(img).unsqueeze(0).numpy()
 
@@ -48,19 +51,19 @@ def run_final_breach(num_tests=100):
         start_time = time.perf_counter()
         results = infer_request.infer({0: input_tensor})
         end_time = time.perf_counter()
-        
+
         # Post-process
         output_node = compiled_model.outputs[0]
         prediction = decode(results[output_node])
-        
+
         # Scoring
         duration = (end_time - start_time) * 1000
         latencies.append(duration)
-        
-        is_correct = (prediction == real_text)
+
+        is_correct = prediction == real_text
         if is_correct:
             success_count += 1
-            
+
         # Live feedback every 10 iterations
         if i % 10 == 0:
             current_acc = (success_count / i) * 100
