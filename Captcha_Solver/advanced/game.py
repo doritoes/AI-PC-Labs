@@ -15,7 +15,7 @@ except ImportError:
 
 core = ov.Core()
 TARGET_ATTEMPTS = 100
-MAX_STRIKES = 3  
+MAX_STRIKES = 5  
 LEADERBOARD_FILE = "leaderboard_advanced.txt"
 generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
 
