@@ -109,3 +109,9 @@ WARNINGS :warning:
     - `python game-improved.py`
     - Note how the improved conversion and quantization had final accuracy of 65%, close to the full model's 66.4% range
     - Note how the NPU version latency was 9.36ms average, compared to full model 44.63 ms
+
+## Final Lab Summary
+- Final Precision: Mixed (INT8 Convolutions / FP16 Linear layers)
+- Hardware: Intel® AI Boost (Arrow Lake NPU)
+- Normalization: 0.0 to 1.0 (Critical fix for accuracy)
+- Performance: ~100 Captchas per second
