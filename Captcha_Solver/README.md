@@ -55,7 +55,7 @@ Steps required to clean up after the Lab is complete.
 if ($env:VIRTUAL_ENV) { deactivate }
 
 # 2. Remove the main project directory and all contents (Models, Env, Scripts)
-$ProjectDir = "$env:USERPROFILE\Edge-AI"
+$ProjectDir = "$env:USERPROFILE\CAPTCHA-AI"
 if (Test-Path $ProjectDir) {
     Write-Host "Removing Project Directory: $ProjectDir" -ForegroundColor Yellow
     Remove-Item -Path $ProjectDir -Recurse -Force
