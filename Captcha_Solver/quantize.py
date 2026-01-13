@@ -18,6 +18,7 @@ calibration_loader = DataLoader(calibration_dataset, batch_size=1)
 
 # Transform the loader into the format NNCF expects
 def transform_fn(data_item):
+    """ return numpy object """
     images, _ = data_item
     return images.numpy()
 
