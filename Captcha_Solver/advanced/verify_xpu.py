@@ -1,3 +1,6 @@
+"""
+confirm the GPU is working
+"""
 import os
 import sys
 
