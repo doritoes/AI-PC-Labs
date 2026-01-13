@@ -1,3 +1,6 @@
+"""
+gamified simulation of CAPTCHA cracking
+"""
 import os
 import sys
 import time
@@ -15,7 +18,7 @@ except ImportError:
 
 core = ov.Core()
 TARGET_ATTEMPTS = 100
-MAX_STRIKES = 5  
+MAX_STRIKES = 5
 LEADERBOARD_FILE = "leaderboard_advanced.txt"
 generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
 
@@ -27,7 +30,7 @@ print("⚡ Initializing Advanced NPU Saboteur Module...")
 try:
     if not os.path.exists(model_xml):
         raise FileNotFoundError(f"INT8 Model not found at {model_xml}")
-    
+
     # Load and compile specifically for the Arrow Lake NPU
     model = core.read_model(model_xml)
     # Lock the shape for static NPU performance
@@ -55,7 +58,7 @@ def update_leaderboard(player_time):
 # --- 2. GAME LOOP ---
 print("\n" + "!"*50)
 print(" !!! ADVANCED SYSTEM BREACH INITIALIZED !!!")
-print(f" COMPLEXITY: 6-Chars | Set: Alphanumeric (62)")
+print(" COMPLEXITY: 6-Chars | Set: Alphanumeric (62)")
 print(f" GOAL: Complete {TARGET_ATTEMPTS} attempts in < 10s")
 print(f" RULE: {MAX_STRIKES} consecutive errors = LOCKOUT")
 print("!"*50 + "\n")
@@ -67,20 +70,20 @@ start_time = time.perf_counter()
 for i in range(1, TARGET_ATTEMPTS + 1):
     # Generate random alphanumeric secret
     secret = "".join([np.random.choice(list(CHARS)) for _ in range(CAPTCHA_LENGTH)])
-    
+
     # Generate as Grayscale to match training
     img = generator.generate_image(secret).convert('L')
 
     # Preprocess: Must match the labs 'refinement' logic exactly
     img_np = np.array(img).astype(np.float32) / 255.0
     img_np = (img_np - 0.5) / 0.5
-    
+
     # Shape for NPU: [Batch, Channel, Height, Width]
     input_tensor = img_np.reshape(1, 1, HEIGHT, WIDTH)
 
     # Execute NPU Inference
     results = compiled_model([input_tensor])[0]
-    
+
     # DECODE FIX: Reshape the flattened [372] output to [6, 62]
     predictions = results.reshape(CAPTCHA_LENGTH, -1)
     pred_indices = np.argmax(predictions, axis=1)
