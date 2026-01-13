@@ -32,7 +32,7 @@ Materials:
     - [OpenVINO](2_OpenVINO.md)
     - [PyTorch](3_PyTorch.md)
 2. Train model (prepare dataset, model architecture; run training)
-    [Train Model](4_Train_Model.md)
+    - [Train Model](4_Train_Model.md)
 
 ## Day 2 - NPU Deployment and "The Hack"
 The model is currently using FP32 (32-bit floating point) math. The NPU on the Core Ultra is built for INT8 (8-bit integer) math. When we convert and quantize the mode, it is "rounding" the AI's logic to make it run faster on specialized hardware.
