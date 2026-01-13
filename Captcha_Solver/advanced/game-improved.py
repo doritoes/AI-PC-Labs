@@ -39,14 +39,16 @@ successes = 0
 strikes = 0
 start_time = time.perf_counter()
 
-print(f"{'ITER':<6} | {'TARGET':<8} | {'PREDICT':<8} | {'STAT':<5} | {'STRIKES':<8} | {'ACCURACY'}")
-print("-" * 75)
+# Adjusted Header for alignment
+header = f"{'HACKING PROGRESS':<20} | {'TARGET':<8} | {'PREDICT':<8} | {'STAT':<6} | {'STRIKES':<8} | {'ACCURACY'}"
+print(header)
+print("-" * len(header))
 
 for i in range(1, TARGET_ATTEMPTS + 1):
     secret = "".join([np.random.choice(list(CHARS)) for _ in range(CAPTCHA_LENGTH)])
     img = generator.generate_image(secret).convert('L')
 
-    # Preprocess (Standard 0-1 for the 63% model)
+    # Preprocess
     img_np = np.array(img).astype(np.float32) / 255.0
     input_tensor = img_np.reshape(1, 1, HEIGHT, WIDTH)
 
@@ -64,23 +66,25 @@ for i in range(1, TARGET_ATTEMPTS + 1):
         strikes += 1
         status = "❌ FAIL"
 
-    # Real-time Per-Attempt Logging
+    # Formatting
+    progress_str = f"{i}% Cracked..."
     acc_pct = (successes / i) * 100
     strike_display = "!" * strikes if strikes > 0 else "-"
-    print(f"{i:<6} | {secret:<8} | {pred_str:<8} | {status:<5} | {strike_display:<8} | {acc_pct:.1f}%")
+    
+    # Aligned F-String
+    print(f"{progress_str:<20} | {secret:<8} | {pred_str:<8} | {status:<6} | {strike_display:<8} | {acc_pct:.1f}%")
 
     if strikes >= MAX_STRIKES:
-        # DRAMATIC LOCKOUT SEQUENCE
         print("\n" + "!" * 60)
         print("!! SECURITY ALERT: PERSISTENT ANOMALY DETECTED !!")
         print("!! FIREWALL ACTIVE - NPU SIGNATURE BLACKLISTED !!")
         print("!" * 60)
-        print("""
+        print(f"""
           ________________________________________________
          /                                                \\
         |    [!]  SYSTEM LOCKOUT ENGAGED  [!]              |
         |                                                  |
-        |    CONSECUTIVE FAILURES: 5                       |
+        |    CONSECUTIVE FAILURES: {strikes}                       |
         |    SESSION ID: NPU-BREACH-ERROR-808              |
         |    STATUS: TERMINATED BY HOST                    |
          \\________________________________________________/
@@ -91,16 +95,16 @@ for i in range(1, TARGET_ATTEMPTS + 1):
 duration = time.perf_counter() - start_time
 
 # --- 3. THE VERDICT ---
-print("\n" + "═" * 60)
+print("\n" + "═" * len(header))
 if duration <= 10.0 and successes >= 60:
     print(f"🏆  MISSION SUCCESS: DATA BREACH COMPLETE")
     print(f"    Final Accuracy: {successes}%")
     print(f"    Execution Time: {duration:.4f}s")
     print(f"    Throughput:     {TARGET_ATTEMPTS/duration:.2f} caps/sec")
-    print("═" * 60)
+    print("═" * len(header))
     print("  >>> ACCESS GRANTED: QUANTUM GATEWAY BYPASSED <<<")
 else:
     print(f"⚠️   MISSION FAILED: SYSTEM REJECTED ACCESS")
     print(f"    Reason: {'Latency' if duration > 10 else 'Accuracy'} Threshold Not Met")
-    print("═" * 60)
+    print("═" * len(header))
 print("\n")
