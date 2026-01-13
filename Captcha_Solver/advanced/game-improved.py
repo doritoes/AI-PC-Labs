@@ -1,3 +1,6 @@
+"""
+gamified simulation of CAPTCHA cracking
+"""
 import os
 import sys
 import time
@@ -15,7 +18,7 @@ except ImportError:
 
 core = ov.Core()
 TARGET_ATTEMPTS = 100
-MAX_STRIKES = 5 
+MAX_STRIKES = 5
 generator = ImageCaptcha(width=WIDTH, height=HEIGHT)
 
 model_xml = os.path.join(os.path.dirname(__file__), "final_npu_int8.xml")
@@ -29,7 +32,7 @@ try:
     model = core.read_model(model_xml)
     model.reshape({0: [1, 1, HEIGHT, WIDTH]})
     compiled_model = core.compile_model(model, "NPU")
-    print(f"✅ NEURAL ENGINE SYNCED. READY FOR BREACH.\n")
+    print("✅ NEURAL ENGINE SYNCED. READY FOR BREACH.\n")
 except Exception as e:
     print(f"❌ LINK FAILURE: {e}")
     sys.exit()
@@ -70,7 +73,7 @@ for i in range(1, TARGET_ATTEMPTS + 1):
     progress_str = f"{i}% Cracked..."
     acc_pct = (successes / i) * 100
     strike_display = "!" * strikes if strikes > 0 else "-"
-    
+
     # Aligned F-String
     print(f"{progress_str:<20} | {secret:<8} | {pred_str:<8} | {status:<6} | {strike_display:<8} | {acc_pct:.1f}%")
 
@@ -97,14 +100,14 @@ duration = time.perf_counter() - start_time
 # --- 3. THE VERDICT ---
 print("\n" + "═" * len(header))
 if duration <= 10.0 and successes >= 60:
-    print(f"🏆  MISSION SUCCESS: DATA BREACH COMPLETE")
+    print("🏆  MISSION SUCCESS: DATA BREACH COMPLETE")
     print(f"    Final Accuracy: {successes}%")
     print(f"    Execution Time: {duration:.4f}s")
     print(f"    Throughput:     {TARGET_ATTEMPTS/duration:.2f} caps/sec")
     print("═" * len(header))
     print("  >>> ACCESS GRANTED: QUANTUM GATEWAY BYPASSED <<<")
 else:
-    print(f"⚠️   MISSION FAILED: SYSTEM REJECTED ACCESS")
+    print("⚠️   MISSION FAILED: SYSTEM REJECTED ACCESS")
     print(f"    Reason: {'Latency' if duration > 10 else 'Accuracy'} Threshold Not Met")
     print("═" * len(header))
 print("\n")
