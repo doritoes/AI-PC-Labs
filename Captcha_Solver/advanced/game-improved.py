@@ -70,22 +70,37 @@ for i in range(1, TARGET_ATTEMPTS + 1):
     print(f"{i:<6} | {secret:<8} | {pred_str:<8} | {status:<5} | {strike_display:<8} | {acc_pct:.1f}%")
 
     if strikes >= MAX_STRIKES:
-        print("\n" + "█" * 60)
-        print("█  CRITICAL ERROR: FIREWALL DETECTED NPU SIGNATURE  █")
-        print(f"█  STRIKE LIMIT EXCEEDED ({MAX_STRIKES}) - LOCKOUT ENGAGED  █")
-        print("█" * 60)
+        # DRAMATIC LOCKOUT SEQUENCE
+        print("\n" + "!" * 60)
+        print("!! SECURITY ALERT: PERSISTENT ANOMALY DETECTED !!")
+        print("!! FIREWALL ACTIVE - NPU SIGNATURE BLACKLISTED !!")
+        print("!" * 60)
+        print("""
+          ________________________________________________
+         /                                                \\
+        |    [!]  SYSTEM LOCKOUT ENGAGED  [!]              |
+        |                                                  |
+        |    CONSECUTIVE FAILURES: 5                       |
+        |    SESSION ID: NPU-BREACH-ERROR-808              |
+        |    STATUS: TERMINATED BY HOST                    |
+         \\________________________________________________/
+        """)
+        print("... Connection Lost ...")
         sys.exit()
 
 duration = time.perf_counter() - start_time
 
 # --- 3. THE VERDICT ---
-print("\n" + "=" * 60)
+print("\n" + "═" * 60)
 if duration <= 10.0 and successes >= 60:
-    print(f"🏆 MISSION SUCCESS: DATA BREACH COMPLETE")
-    print(f"   Final Accuracy: {successes}%")
-    print(f"   Execution Time: {duration:.4f}s")
-    print(f"   Throughput:     {TARGET_ATTEMPTS/duration:.2f} caps/sec")
+    print(f"🏆  MISSION SUCCESS: DATA BREACH COMPLETE")
+    print(f"    Final Accuracy: {successes}%")
+    print(f"    Execution Time: {duration:.4f}s")
+    print(f"    Throughput:     {TARGET_ATTEMPTS/duration:.2f} caps/sec")
+    print("═" * 60)
+    print("  >>> ACCESS GRANTED: QUANTUM GATEWAY BYPASSED <<<")
 else:
-    print(f"⚠️  MISSION FAILED: SYSTEM REJECTED ACCESS")
-    print(f"   Reason: {'Latency' if duration > 10 else 'Accuracy'} Threshold Not Met")
-print("=" * 60 + "\n")
+    print(f"⚠️   MISSION FAILED: SYSTEM REJECTED ACCESS")
+    print(f"    Reason: {'Latency' if duration > 10 else 'Accuracy'} Threshold Not Met")
+    print("═" * 60)
+print("\n")
