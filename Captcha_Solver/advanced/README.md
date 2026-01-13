@@ -60,9 +60,13 @@ WARNINGS :warning:
     - [model.py](model.py)
     - [train.py](train.py)
     - [convert.py](convert.py)
+    - [convert-improved.py](convert-improved.py)
     - [quantize.py](quantize.py)
+    - [quantize-improved.py](quantize-improved.py)
     - [solve-captcha.py](solve-captcha.py)
+    - [solve-captcha-improved.py](solve-captcha-improved.py)
     - [game.py](game.py)
+    - [game-improved.py](game-improved.py)
 12. Start the GPU cache purge loop in a separate powershell window
     - `python -c "import torch; torch.xpu.empty_cache(); print('✅ XPU Cache Cleared')"`
     - This does a hard flush of GPU cache every minute for 1 day
@@ -78,14 +82,7 @@ WARNINGS :warning:
     - Test progress
         - `predict.py` will test the model
         - `benchmark.py` will test the model some more
-14. Refine
-    - Decided to do additional training to improve on the "hard characters" to identify
-    - 5 more epochs
-    - `refine.py`
-    - Test progress
-        - `predict.py` will test the model
-        - `benchmark.py` will test the model some more
-15. Convert and Quantize
+14. Convert and Quantize
     - `python convert.py`
         - Will see some warnings, it is OK
     - `python quantize.py`
@@ -101,6 +98,14 @@ WARNINGS :warning:
                 - Toggle Developer Mode to **On**
                 - Restart your PC. This is crucial because SAC policies are often loaded at boot.
         - Will see errors, is is OK
+    - `python convert-improved.py`
+        - Note how this conversion script is part of achieving a better INT8 model
+    - `python quantized-improved.py`
+        - Note how this quantization script is part of achieving a better INT8 model
 16. Test
     - `python solve-captcha.py`
     - `python game.py`
+    - `python solve-captch-improved.py`
+    - `python game-improved.py`
+    - Note how the improved conversion and quantization had final accuracy of 65%, close to the full model's 66.4% range
+    - Note how the NPU version latency was 9.36ms average, compared to full model 44.63 ms
