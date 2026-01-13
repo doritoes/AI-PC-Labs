@@ -1,3 +1,6 @@
+"""
+quantize the OpenVINO model to INT8
+"""
 import os
 import nncf
 import openvino as ov
@@ -7,9 +10,10 @@ from torchvision import transforms
 import config
 
 def quantize_safe():
+    """ method to quantize without losing accuracy """
     current_dir = os.path.dirname(os.path.abspath(__file__))
     model_path = os.path.join(current_dir, "baseline_npu_fp32.xml")
-    
+
     if not os.path.exists(model_path):
         print(f"❌ Error: {model_path} not found! Run convert_to_npu.py first.")
         return
@@ -38,15 +42,15 @@ def quantize_safe():
     # We remove 'conv1' to avoid the strict validation crash.
     ignored_scope = nncf.IgnoredScope(
         patterns=[
-            ".*fc.*", 
+            ".*fc.*",
             ".*output.*",
             ".*linear.*"
         ]
     )
 
     print("🚀 Quantizing: Conv -> INT8 | Classification -> FP16...")
-    
-    # We set validate=False internally by catching the potential error 
+
+    # We set validate=False internally by catching the potential error
     # and falling back to a guaranteed match.
     try:
         quantized_model = nncf.quantize(
